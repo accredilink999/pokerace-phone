@@ -1674,7 +1674,7 @@ function renderSettings(el){
 
   h+=`<div class="card-panel" style="text-align:center">
     <div class="logo" style="font-size:20px;margin-bottom:4px"><span class="g">Poker</span><span class="a">Ace</span></div>
-    <div style="font-size:11px;color:#64748b">v1.0.0 \u2014 Phone Only Edition</div>
+    <div style="font-size:11px;color:#64748b">v1.1.0 \u2014 OCR Debug Edition</div>
     <div style="font-size:10px;color:#475569;margin-top:4px">No server needed \u2022 100% on-device</div>
     <div style="font-size:10px;color:#475569;margin-top:2px">Strategy \u2022 Push/Fold \u2022 Tester \u2022 Live Advisor</div>
     <div style="font-size:9px;color:#334155;margin-top:8px">Camera OCR powered by Tesseract.js (optional)</div></div>`;
@@ -1730,9 +1730,15 @@ function setStatus(ok, text){
 restore();
 renderTab('strategy');
 
-// Register service worker for PWA
+// Register service worker for PWA (versioned to bust cache)
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js').then(reg=>{
+  // Unregister old workers first to force clean slate
+  navigator.serviceWorker.getRegistrations().then(regs=>{
+    regs.forEach(r=>r.unregister());
+  }).then(()=>{
+    caches.keys().then(keys=>keys.forEach(k=>caches.delete(k)));
+  });
+  navigator.serviceWorker.register('sw.js?v=3').then(reg=>{
     reg.addEventListener('updatefound',()=>{
       const nw=reg.installing;
       nw.addEventListener('statechange',()=>{if(nw.state==='activated') location.reload()});
