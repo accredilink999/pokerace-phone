@@ -588,8 +588,10 @@ const S={
   // Live mode state
   liveCard1:null, liveCard2:null, // {rank:'A',suit:'h'}
   livePos:'BTN', liveBB:20, liveFacing:'unopened',
-  liveMode:'input', // 'input' or 'camera'
   stream:null,capturing:false,
+  autoScan:false, autoScanInterval:5, scanCount:0,
+  lastOcrText:'', detectedBlinds:'', detectedPot:'',
+  autoScanTimer:null,
 };
 
 function rangeKey(phase,pos,action){return phase+':'+pos+':'+action}
@@ -1055,7 +1057,40 @@ function renderLive(el){
 
   let h='';
 
-  // Decision display
+  // ─── CAMERA FEED (top, always visible) ───
+  h+=`<div class="camera-wrap" id="cameraWrap">
+    <video id="video" autoplay playsinline muted style="min-height:200px;background:#000"></video>
+    <canvas id="canvas"></canvas>
+    <div class="cam-overlay">
+      <span id="ocrStatus" style="color:${S.autoScan?'#22c55e':'#64748b'}">${S.autoScan?'Auto-scanning...':'Camera ready'}</span>
+      <span id="scanCount">${S.scanCount||0} scans</span>
+    </div>
+  </div>`;
+
+  // Camera controls
+  h+=`<div class="btn-row" style="margin-bottom:10px">
+    <button class="btn btn-green btn-sm" style="flex:1" id="btnCamStart" onclick="startCamera()">Start Camera</button>
+    <button class="btn btn-amber btn-sm" style="flex:1" id="btnOcrSnap" onclick="ocrSnapshot()" style="opacity:.4">Scan Now</button>
+    <button class="btn btn-red btn-sm" id="btnCamStop" onclick="stopCamera()">Stop</button>
+  </div>`;
+
+  // Auto-scan toggle
+  h+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg2);border:1px solid var(--bg3);border-radius:10px;margin-bottom:10px;font-size:11px">
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1">
+      <input type="checkbox" id="autoScanToggle" ${S.autoScan?'checked':''} onchange="toggleAutoScan(this.checked)" style="accent-color:#22c55e;width:16px;height:16px">
+      <span style="color:${S.autoScan?'#22c55e':'#64748b'};font-weight:600">Auto-scan every</span>
+    </label>
+    <select onchange="S.autoScanInterval=+this.value" style="background:var(--bg);border:1px solid var(--bg3);color:var(--text);border-radius:6px;padding:3px 6px;font-size:11px">
+      <option value="3" ${S.autoScanInterval===3?'selected':''}>3s</option>
+      <option value="5" ${S.autoScanInterval===5?'selected':''}>5s</option>
+      <option value="10" ${S.autoScanInterval===10?'selected':''}>10s</option>
+    </select>
+  </div>`;
+
+  // OCR results
+  h+=`<div class="ocr-result" id="ocrResult" style="display:${S.lastOcrText?'block':'none'}">${S.lastOcrText||''}</div>`;
+
+  // ─── DECISION DISPLAY ───
   if(decision){
     const ac=ACTION_COLORS[decision.action]||'#94a3b8';
     h+=`<div class="live-decision" style="background:${ac}10;border-color:${ac}40">
@@ -1067,11 +1102,27 @@ function renderLive(el){
   }else{
     h+=`<div class="live-decision">
       <div style="font-size:28px;margin-bottom:6px">\u2660\u2665</div>
-      <div style="font-size:14px;color:#64748b">Select your two cards below</div>
+      <div style="font-size:14px;color:#64748b">Point camera at table or tap cards below</div>
     </div>`;
   }
 
-  // Selected hero cards display
+  // ─── DETECTED INFO BAR ───
+  h+=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
+    <div class="card-panel" style="padding:8px;text-align:center">
+      <div style="font-size:8px;color:#64748b;text-transform:uppercase">Blinds</div>
+      <div style="font-size:14px;font-weight:700" id="detectedBlinds">${S.detectedBlinds||'\u2014'}</div>
+    </div>
+    <div class="card-panel" style="padding:8px;text-align:center">
+      <div style="font-size:8px;color:#64748b;text-transform:uppercase">Pot</div>
+      <div style="font-size:14px;font-weight:700" id="detectedPot">${S.detectedPot||'\u2014'}</div>
+    </div>
+    <div class="card-panel" style="padding:8px;text-align:center">
+      <div style="font-size:8px;color:#64748b;text-transform:uppercase">Stack</div>
+      <div style="font-size:14px;font-weight:700">${S.liveBB} BB</div>
+    </div>
+  </div>`;
+
+  // ─── HERO CARDS + QUICK PICKER ───
   h+=`<div class="hero-cards">`;
   if(S.liveCard1){
     const sn=SUIT_NAMES[S.liveCard1.suit];
@@ -1089,37 +1140,14 @@ function renderLive(el){
   }
   h+=`</div>`;
 
-  // Quick clear
-  if(S.liveCard1||S.liveCard2){
-    h+=`<div style="text-align:center;margin-bottom:10px">
-      <button class="btn btn-red btn-sm" onclick="S.liveCard1=null;S.liveCard2=null;renderTab('live')">Clear Cards</button>
-      <button class="btn btn-slate btn-sm" onclick="nextHand()">Next Hand</button>
-    </div>`;
-  }
+  // Quick actions
+  h+=`<div style="text-align:center;margin-bottom:10px">
+    <button class="btn btn-red btn-xs" onclick="S.liveCard1=null;S.liveCard2=null;renderTab('live')">Clear</button>
+    <button class="btn btn-slate btn-xs" onclick="nextHand()">Next Hand</button>
+    <button class="btn btn-blue btn-xs" onclick="showCardPicker()">Pick Cards</button>
+  </div>`;
 
-  // Card picker — 4 rows (one per suit)
-  h+=`<div class="card-panel"><div class="section-title">Pick Your Cards</div>`;
-  const usedCards = [];
-  if(S.liveCard1) usedCards.push(S.liveCard1.rank+S.liveCard1.suit);
-  if(S.liveCard2) usedCards.push(S.liveCard2.rank+S.liveCard2.suit);
-  const hasBoth = S.liveCard1 && S.liveCard2;
-
-  for(const suit of SUITS){
-    h+=`<div class="card-grid" style="margin-bottom:3px">`;
-    for(const rank of RANKS){
-      const key=rank+suit;
-      const used=usedCards.includes(key);
-      const disabled=hasBoth&&!used;
-      const selected=used;
-      const sn=SUIT_NAMES[suit];
-      h+=`<div class="card-btn ${sn}${selected?' selected':''}${disabled?' disabled':''}" onclick="pickCard('${rank}','${suit}')">
-        <span>${rank}</span><span style="font-size:8px">${SUIT_SYMBOLS[suit]}</span></div>`;
-    }
-    h+=`</div>`;
-  }
-  h+=`</div>`;
-
-  // Position
+  // ─── POSITION + FACING (compact) ───
   h+=`<div class="card-panel"><div class="section-title">Position</div><div class="pos-bar">`;
   for(const pos of POSITIONS_9MAX){
     const act=S.livePos===pos;
@@ -1127,7 +1155,6 @@ function renderLive(el){
   }
   h+=`</div></div>`;
 
-  // Stack + Facing
   h+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">`;
   h+=`<div class="card-panel">
     <div class="section-title">Stack</div>
@@ -1150,28 +1177,10 @@ function renderLive(el){
   h+=`</div></div>`;
   h+=`</div>`;
 
-  // Strategy info
-  h+=`<div class="card-panel" style="font-size:12px;display:flex;justify-content:space-between">
-    <span>Strategy: <span style="color:#22c55e;font-weight:600">${esc(S.currentStrategyName)}</span></span>
-    <span style="color:#64748b">${S.phases.length} phases</span></div>`;
-
-  // Camera OCR section
-  h+=`<div class="card-panel">
-    <div class="section-title">Camera OCR (Experimental)</div>
-    <p style="font-size:11px;color:#64748b;margin-bottom:8px">Point camera at poker table to read text. Reads blinds, stacks, pot values.</p>
-    <div class="btn-row">
-      <button class="btn btn-blue btn-sm" id="btnCamStart" onclick="startCamera()">Open Camera</button>
-      <button class="btn btn-red btn-sm" id="btnCamStop" onclick="stopCamera()" style="opacity:.4;pointer-events:none">Close</button>
-      <button class="btn btn-amber btn-sm" id="btnOcrSnap" onclick="ocrSnapshot()" style="opacity:.4;pointer-events:none">Read Text</button>
-    </div>
-    <div class="camera-wrap" id="cameraWrap" style="display:none;margin-top:8px">
-      <video id="video" autoplay playsinline muted></video>
-      <canvas id="canvas"></canvas>
-    </div>
-    <div class="ocr-result" id="ocrResult" style="display:none;margin-top:8px"></div>
-  </div>`;
-
   el.innerHTML=h;
+
+  // Auto-start camera when entering Live tab
+  if(!S.stream) startCamera();
 }
 
 function pickCard(rank, suit){
@@ -1211,29 +1220,82 @@ function nextHand(){
 
 
 // ═══════════════════════════════════════════════════
-// CAMERA + OCR (Optional — Tesseract.js from CDN)
+// CAMERA + OCR — Tesseract.js loaded eagerly
 // ═══════════════════════════════════════════════════
 
 let ocrWorker = null;
 let ocrLoading = false;
+let ocrReady = false;
+let ocrBusy = false;
+
+// Start loading Tesseract.js immediately
+(function preloadTesseract(){
+  if(window.Tesseract) return;
+  const script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+  script.onload = () => console.log('Tesseract.js loaded');
+  document.head.appendChild(script);
+})();
+
+async function ensureOCR(){
+  if(ocrWorker && ocrReady) return ocrWorker;
+  if(ocrLoading) return null;
+  ocrLoading = true;
+  updateOcrStatus('Loading OCR engine...');
+
+  try{
+    // Wait for Tesseract to be available
+    if(!window.Tesseract){
+      await new Promise((resolve, reject) => {
+        let tries = 0;
+        const check = setInterval(() => {
+          if(window.Tesseract){clearInterval(check);resolve()}
+          if(++tries > 100){clearInterval(check);reject(new Error('Tesseract failed to load'))}
+        }, 200);
+      });
+    }
+
+    updateOcrStatus('Downloading language data (~2MB)...');
+    ocrWorker = await Tesseract.createWorker('eng', 1, {
+      logger: m => {
+        if(m.status === 'loading language traineddata'){
+          updateOcrStatus('Downloading OCR data: '+Math.round((m.progress||0)*100)+'%');
+        }
+      }
+    });
+    ocrReady = true;
+    ocrLoading = false;
+    updateOcrStatus('OCR ready');
+    return ocrWorker;
+  }catch(e){
+    ocrLoading = false;
+    updateOcrStatus('OCR failed: '+e.message);
+    return null;
+  }
+}
+
+function updateOcrStatus(text){
+  const el = document.getElementById('ocrStatus');
+  if(el) el.textContent = text;
+}
 
 async function startCamera(){
   try{
     S.stream = await navigator.mediaDevices.getUserMedia({
       video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},audio:false
     });
-    const wrap = document.getElementById('cameraWrap');
     const vid = document.getElementById('video');
-    if(wrap) wrap.style.display='block';
     if(vid) vid.srcObject = S.stream;
+    updateOcrStatus('Camera active');
+
+    // Start loading OCR in background
+    ensureOCR();
+
     const btnStart = document.getElementById('btnCamStart');
-    const btnStop = document.getElementById('btnCamStop');
-    const btnSnap = document.getElementById('btnOcrSnap');
-    if(btnStart){btnStart.style.opacity='.4';btnStart.style.pointerEvents='none'}
-    if(btnStop){btnStop.style.opacity='1';btnStop.style.pointerEvents='auto'}
-    if(btnSnap){btnSnap.style.opacity='1';btnSnap.style.pointerEvents='auto'}
+    if(btnStart){btnStart.textContent='Camera On';btnStart.style.opacity='.5'}
   }catch(e){
-    alert('Camera access denied: '+e.message);
+    updateOcrStatus('Camera denied');
+    alert('Camera access denied. Make sure you allow camera permissions.\n\n'+e.message);
   }
 }
 
@@ -1242,114 +1304,227 @@ function stopCamera(){
     S.stream.getTracks().forEach(t=>t.stop());
     S.stream=null;
   }
-  const wrap = document.getElementById('cameraWrap');
-  if(wrap) wrap.style.display='none';
+  toggleAutoScan(false);
+  updateOcrStatus('Camera stopped');
   const btnStart = document.getElementById('btnCamStart');
-  const btnStop = document.getElementById('btnCamStop');
-  const btnSnap = document.getElementById('btnOcrSnap');
-  if(btnStart){btnStart.style.opacity='1';btnStart.style.pointerEvents='auto'}
-  if(btnStop){btnStop.style.opacity='.4';btnStop.style.pointerEvents='none'}
-  if(btnSnap){btnSnap.style.opacity='.4';btnSnap.style.pointerEvents='none'}
+  if(btnStart){btnStart.textContent='Start Camera';btnStart.style.opacity='1'}
 }
 
-async function loadTesseract(){
-  if(ocrWorker) return ocrWorker;
-  if(ocrLoading) return null;
-  ocrLoading = true;
-
-  const ocrEl = document.getElementById('ocrResult');
-  if(ocrEl){ocrEl.style.display='block';ocrEl.textContent='Loading OCR engine (first time ~2MB)...'}
-
-  // Load Tesseract.js from CDN
-  if(!window.Tesseract){
-    await new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
+function toggleAutoScan(on){
+  S.autoScan = on;
+  if(S.autoScanTimer){clearInterval(S.autoScanTimer);S.autoScanTimer=null}
+  if(on && S.stream){
+    updateOcrStatus('Auto-scanning...');
+    ocrSnapshot(); // immediate first scan
+    S.autoScanTimer = setInterval(()=>ocrSnapshot(), S.autoScanInterval*1000);
+  }else{
+    updateOcrStatus(S.stream?'Camera active':'Camera stopped');
   }
-
-  ocrWorker = await Tesseract.createWorker('eng', 1, {
-    logger: m => {
-      if(m.status==='recognizing text'){
-        const pct = Math.round((m.progress||0)*100);
-        if(ocrEl) ocrEl.textContent = 'Reading... '+pct+'%';
-      }
-    }
-  });
-
-  ocrLoading = false;
-  if(ocrEl) ocrEl.textContent = 'OCR ready. Tap "Read Text" to scan.';
-  return ocrWorker;
 }
 
 async function ocrSnapshot(){
   const video = document.getElementById('video');
   const canvas = document.getElementById('canvas');
-  const ocrEl = document.getElementById('ocrResult');
   if(!video||!canvas||!S.stream) return;
+  if(ocrBusy) return; // skip if still processing previous frame
+  if(video.videoWidth===0) return; // camera not ready yet
 
-  // Capture frame
+  ocrBusy = true;
+  updateOcrStatus('Scanning...');
+
+  // Capture frame to canvas
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
-  canvas.getContext('2d').drawImage(video,0,0);
-
-  if(ocrEl){ocrEl.style.display='block';ocrEl.textContent='Loading OCR...'}
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video,0,0);
 
   try{
-    const worker = await loadTesseract();
-    if(!worker){if(ocrEl) ocrEl.textContent='OCR failed to load';return}
+    const worker = await ensureOCR();
+    if(!worker){ocrBusy=false;return}
 
-    const dataUrl = canvas.toDataURL('image/png');
+    // Convert to image data for OCR
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
     const result = await worker.recognize(dataUrl);
     const text = result.data.text.trim();
 
-    if(ocrEl){
-      if(text){
-        ocrEl.textContent = 'OCR Result:\n' + text;
-        // Try to parse useful poker info
-        const parsed = parsePokerText(text);
-        if(parsed) ocrEl.textContent += '\n\n' + parsed;
-      }else{
-        ocrEl.textContent = 'No text detected. Try moving closer or improving lighting.';
-      }
+    S.scanCount = (S.scanCount||0)+1;
+    const countEl = document.getElementById('scanCount');
+    if(countEl) countEl.textContent = S.scanCount+' scans';
+
+    if(text){
+      // Parse poker information from OCR text
+      const parsed = parsePokerText(text);
+      S.lastOcrText = text + (parsed ? '\n'+parsed : '');
+
+      const ocrEl = document.getElementById('ocrResult');
+      if(ocrEl){ocrEl.style.display='block';ocrEl.textContent=S.lastOcrText}
+
+      updateOcrStatus(S.autoScan?'Auto-scanning...':'Scan complete');
+    }else{
+      updateOcrStatus('No text found \u2014 move closer');
     }
   }catch(e){
-    if(ocrEl) ocrEl.textContent = 'OCR error: '+e.message;
+    updateOcrStatus('Scan error: '+e.message);
+    console.error('OCR error:', e);
   }
+  ocrBusy = false;
 }
 
 function parsePokerText(text){
-  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
   const info = [];
 
-  // Try to find blind levels (e.g. "100/200", "Blinds: 50/100")
-  const blindMatch = text.match(/(\d[\d,.]*)\s*[\/\\]\s*(\d[\d,.]*)/);
-  if(blindMatch){
-    const sb = parseFloat(blindMatch[1].replace(/,/g,''));
-    const bb = parseFloat(blindMatch[2].replace(/,/g,''));
-    info.push('Blinds: '+sb+'/'+bb);
-    // Auto-fill BB if reasonable
-    if(bb>0 && bb<100000) S.liveBB = Math.round(S.liveBB); // keep current
+  // ─── Blind levels: "100/200", "25/50", "Blinds: 50/100" ───
+  const blindMatches = text.match(/(\d[\d,.]*)\s*[\/\\]\s*(\d[\d,.]*)/g);
+  if(blindMatches){
+    for(const bm of blindMatches){
+      const parts = bm.match(/(\d[\d,.]*)\s*[\/\\]\s*(\d[\d,.]*)/);
+      if(parts){
+        const sb = parseFloat(parts[1].replace(/,/g,''));
+        const bb = parseFloat(parts[2].replace(/,/g,''));
+        if(bb>0 && bb>sb && bb<1000000){
+          S.detectedBlinds = sb+'/'+bb;
+          info.push('Blinds: '+sb+'/'+bb);
+          // Auto-update BB count
+          const dbEl = document.getElementById('detectedBlinds');
+          if(dbEl) dbEl.textContent = sb+'/'+bb;
+          break;
+        }
+      }
+    }
   }
 
-  // Try to find pot (e.g. "Pot: 1,500")
-  const potMatch = text.match(/pot[:\s]*\$?([\d,]+)/i);
-  if(potMatch) info.push('Pot: '+potMatch[1]);
+  // ─── Pot: "Pot: 1,500", "POT 2500", "Total pot: $500" ───
+  const potMatch = text.match(/(?:pot|total)[:\s]*\$?\s*([\d,]+)/i);
+  if(potMatch){
+    const pot = potMatch[1].replace(/,/g,'');
+    S.detectedPot = pot;
+    info.push('Pot: '+pot);
+    const dpEl = document.getElementById('detectedPot');
+    if(dpEl) dpEl.textContent = pot;
+  }
 
-  // Try to find stack sizes
-  const stackMatch = text.match(/(\d[\d,.]*)\s*(chips?|stack)/i);
-  if(stackMatch) info.push('Stack: '+stackMatch[1]);
-
-  // Try to detect actions
-  const actionWords = ['FOLD','CHECK','CALL','RAISE','ALL.IN','BET'];
+  // ─── Player actions ───
+  const actionWords = ['FOLD','CHECK','CALL','RAISE','ALL-IN','ALL IN','BET'];
   for(const aw of actionWords){
-    if(text.toUpperCase().includes(aw)) info.push('Action detected: '+aw);
+    if(text.toUpperCase().includes(aw)){
+      info.push('Action: '+aw);
+      // Auto-set facing action
+      if(aw==='RAISE'||aw==='BET') S.liveFacing='raise';
+      else if(aw==='ALL-IN'||aw==='ALL IN') S.liveFacing='shove';
+    }
   }
 
-  return info.length>0 ? '\nParsed:\n'+info.join('\n') : '';
+  // ─── Card detection: look for card text like "A\u2660", "Kh", "Qd" etc ───
+  const cardPattern = /\b([AKQJT2-9])\s*([♠♥♦♣\u2660\u2665\u2666\u2663])/g;
+  let cardMatch;
+  const detectedCards = [];
+  while((cardMatch=cardPattern.exec(text))!==null){
+    const rank = cardMatch[1] === '1' ? 'T' : cardMatch[1]; // handle 10
+    const suitMap = {'\u2660':'s','\u2665':'h','\u2666':'d','\u2663':'c','♠':'s','♥':'h','♦':'d','♣':'c'};
+    const suit = suitMap[cardMatch[2]];
+    if(rank && suit) detectedCards.push({rank,suit});
+  }
+
+  // Also try text-based suits: "Ah", "Ks", "Qd", "Jc"
+  const textCardPattern = /\b([AKQJT2-9])([hdcs])\b/gi;
+  while((cardMatch=textCardPattern.exec(text))!==null){
+    const rank = cardMatch[1].toUpperCase();
+    const suit = cardMatch[2].toLowerCase();
+    if(RANKS.includes(rank) && SUITS.includes(suit)){
+      // Avoid duplicates
+      if(!detectedCards.some(c=>c.rank===rank&&c.suit===suit)){
+        detectedCards.push({rank,suit});
+      }
+    }
+  }
+
+  if(detectedCards.length>=2){
+    S.liveCard1 = detectedCards[0];
+    S.liveCard2 = detectedCards[1];
+    info.push('Cards: '+detectedCards.map(c=>c.rank+SUIT_SYMBOLS[c.suit]).join(' '));
+    // Re-render to show the detected cards and decision
+    setTimeout(()=>renderLiveDecisionOnly(), 100);
+  }else if(detectedCards.length===1){
+    if(!S.liveCard1) S.liveCard1 = detectedCards[0];
+    else if(!S.liveCard2) S.liveCard2 = detectedCards[0];
+    info.push('Card: '+detectedCards[0].rank+SUIT_SYMBOLS[detectedCards[0].suit]);
+  }
+
+  // ─── Numbers that could be stacks ───
+  const bigNumbers = text.match(/\b(\d{2,6}(?:,\d{3})*)\b/g);
+  if(bigNumbers){
+    const nums = bigNumbers.map(n=>parseInt(n.replace(/,/g,''))).filter(n=>n>0).sort((a,b)=>b-a);
+    if(nums.length>0 && !potMatch) info.push('Numbers: '+nums.slice(0,5).join(', '));
+  }
+
+  return info.length>0 ? 'Detected: '+info.join(' | ') : '';
+}
+
+// Update just the decision area without re-rendering everything
+function renderLiveDecisionOnly(){
+  const combo = cardsToCombo(S.liveCard1, S.liveCard2);
+  if(!combo) return;
+  const decision = getDecision({
+    heroCombo:combo, heroPosition:S.livePos, heroBBCount:S.liveBB,
+    facingAction:S.liveFacing,
+    phases:S.phases.map(p=>({phaseName:p.phaseName,minBB:p.minBB,maxBB:p.maxBB})),
+    allRanges:S.allRanges,
+  });
+  // Update hero cards display
+  const heroCards = document.querySelector('.hero-cards');
+  if(heroCards){
+    let h='';
+    if(S.liveCard1){
+      const sn=SUIT_NAMES[S.liveCard1.suit];
+      h+=`<div class="hero-card filled ${sn}" onclick="S.liveCard1=null;renderTab('live')">
+        <span>${S.liveCard1.rank}</span><span class="suit-sym">${SUIT_SYMBOLS[S.liveCard1.suit]}</span></div>`;
+    }
+    if(S.liveCard2){
+      const sn=SUIT_NAMES[S.liveCard2.suit];
+      h+=`<div class="hero-card filled ${sn}" onclick="S.liveCard2=null;renderTab('live')">
+        <span>${S.liveCard2.rank}</span><span class="suit-sym">${SUIT_SYMBOLS[S.liveCard2.suit]}</span></div>`;
+    }
+    heroCards.innerHTML=h;
+  }
+  // Update decision display
+  const decEl = document.querySelector('.live-decision');
+  if(decEl && decision){
+    const ac=ACTION_COLORS[decision.action]||'#94a3b8';
+    decEl.style.background=ac+'10';
+    decEl.style.borderColor=ac+'40';
+    decEl.innerHTML=`
+      <div class="action" style="color:${ac}">${decision.action}</div>
+      <div class="combo">${combo} from ${S.livePos}</div>
+      <div style="font-size:14px;font-weight:700;margin-top:8px;color:${ac}">${Math.round(decision.confidence*100)}% confidence</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:4px">${S.liveBB} BB \u00B7 ${decision.phaseUsed}${decision.inRange?' \u00B7 IN RANGE':' \u00B7 OUT OF RANGE'}</div>`;
+  }
+}
+
+// Card picker modal
+function showCardPicker(){
+  const bg=document.createElement('div');bg.className='modal-bg';
+  bg.onclick=e=>{if(e.target===bg)bg.remove()};
+  const usedCards = [];
+  if(S.liveCard1) usedCards.push(S.liveCard1.rank+S.liveCard1.suit);
+  if(S.liveCard2) usedCards.push(S.liveCard2.rank+S.liveCard2.suit);
+  const hasBoth = S.liveCard1 && S.liveCard2;
+
+  let h=`<div class="modal"><h3>Pick Your Cards</h3>`;
+  for(const suit of SUITS){
+    h+=`<div class="card-grid" style="margin-bottom:4px">`;
+    for(const rank of RANKS){
+      const key=rank+suit;
+      const used=usedCards.includes(key);
+      const disabled=hasBoth&&!used;
+      const sn=SUIT_NAMES[suit];
+      h+=`<div class="card-btn ${sn}${used?' selected':''}${disabled?' disabled':''}"
+        onclick="pickCard('${rank}','${suit}');this.closest('.modal-bg').remove()">
+        <span>${rank}</span><span style="font-size:8px">${SUIT_SYMBOLS[suit]}</span></div>`;
+    }
+    h+=`</div>`;
+  }
+  h+=`<button class="btn btn-slate" style="width:100%;margin-top:8px" onclick="this.closest('.modal-bg').remove()">Close</button></div>`;
+  bg.innerHTML=h;document.body.appendChild(bg);
 }
 
 
