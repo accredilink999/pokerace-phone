@@ -1057,57 +1057,7 @@ function renderLive(el){
 
   let h='';
 
-  // ─── CAMERA FEED (top, always visible) ───
-  h+=`<div class="camera-wrap" id="cameraWrap">
-    <video id="video" autoplay playsinline muted style="min-height:200px;background:#000"></video>
-    <canvas id="canvas"></canvas>
-    <div class="cam-overlay">
-      <span id="ocrStatus" style="color:${S.autoScan?'#22c55e':'#64748b'}">${S.autoScan?'Auto-scanning...':'Camera ready'}</span>
-      <span id="scanCount">${S.scanCount||0} scans</span>
-    </div>
-  </div>`;
-
-  // Camera controls
-  h+=`<div class="btn-row" style="margin-bottom:10px">
-    <button class="btn btn-green btn-sm" style="flex:1" id="btnCamStart" onclick="startCamera()">Start Camera</button>
-    <button class="btn btn-amber btn-sm" style="flex:1" id="btnOcrSnap" onclick="ocrSnapshot()" style="opacity:.4">Scan Now</button>
-    <button class="btn btn-red btn-sm" id="btnCamStop" onclick="stopCamera()">Stop</button>
-  </div>`;
-
-  // Auto-scan toggle
-  h+=`<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg2);border:1px solid var(--bg3);border-radius:10px;margin-bottom:10px;font-size:11px">
-    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1">
-      <input type="checkbox" id="autoScanToggle" ${S.autoScan?'checked':''} onchange="toggleAutoScan(this.checked)" style="accent-color:#22c55e;width:16px;height:16px">
-      <span style="color:${S.autoScan?'#22c55e':'#64748b'};font-weight:600">Auto-scan every</span>
-    </label>
-    <select onchange="S.autoScanInterval=+this.value" style="background:var(--bg);border:1px solid var(--bg3);color:var(--text);border-radius:6px;padding:3px 6px;font-size:11px">
-      <option value="3" ${S.autoScanInterval===3?'selected':''}>3s</option>
-      <option value="5" ${S.autoScanInterval===5?'selected':''}>5s</option>
-      <option value="10" ${S.autoScanInterval===10?'selected':''}>10s</option>
-    </select>
-  </div>`;
-
-  // OCR results + debug
-  h+=`<div class="ocr-result" id="ocrResult" style="display:${S.lastOcrText?'block':'none'};white-space:pre-wrap;font-size:10px;max-height:120px;overflow-y:auto">${esc(S.lastOcrText||'')}</div>`;
-
-  // Snapshot previews (what camera sees vs what OCR processes)
-  h+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px">
-    <div style="text-align:center">
-      <div style="font-size:8px;color:#64748b;margin-bottom:2px">Camera Capture</div>
-      <img id="ocrPreview" style="display:none;width:100%;border-radius:6px;border:1px solid var(--bg3)">
-    </div>
-    <div style="text-align:center">
-      <div style="font-size:8px;color:#64748b;margin-bottom:2px">Processed (OCR input)</div>
-      <img id="ocrProcessed" style="display:none;width:100%;border-radius:6px;border:1px solid var(--bg3)">
-    </div>
-  </div>`;
-
-  // Debug log
-  h+=`<details style="margin-bottom:10px"><summary style="font-size:10px;color:#64748b;cursor:pointer;padding:4px">OCR Debug Log</summary>
-    <pre id="ocrDebug" style="font-size:9px;color:#94a3b8;background:#0f172a;padding:8px;border-radius:6px;max-height:150px;overflow-y:auto;white-space:pre-wrap">${ocrDebugLog.join('\n')}</pre>
-  </details>`;
-
-  // ─── DECISION DISPLAY ───
+  // ─── DECISION DISPLAY (top, most important) ───
   if(decision){
     const ac=ACTION_COLORS[decision.action]||'#94a3b8';
     h+=`<div class="live-decision" style="background:${ac}10;border-color:${ac}40">
@@ -1119,7 +1069,7 @@ function renderLive(el){
   }else{
     h+=`<div class="live-decision">
       <div style="font-size:28px;margin-bottom:6px">\u2660\u2665</div>
-      <div style="font-size:14px;color:#64748b">Point camera at table or tap cards below</div>
+      <div style="font-size:14px;color:#64748b">Select your cards below for advice</div>
     </div>`;
   }
 
@@ -1162,7 +1112,16 @@ function renderLive(el){
     <button class="btn btn-red btn-xs" onclick="S.liveCard1=null;S.liveCard2=null;renderTab('live')">Clear</button>
     <button class="btn btn-slate btn-xs" onclick="nextHand()">Next Hand</button>
     <button class="btn btn-blue btn-xs" onclick="showCardPicker()">Pick Cards</button>
+    <button class="btn btn-amber btn-xs" onclick="document.getElementById('reposBar').style.display=document.getElementById('reposBar').style.display==='none'?'flex':'none'">Reposition</button>
   </div>`;
+
+  // Quick reposition bar (hidden by default, toggled by Reposition button)
+  h+=`<div id="reposBar" style="display:none;flex-wrap:wrap;justify-content:center;gap:4px;margin-bottom:10px;padding:8px;background:var(--bg2);border:1px solid var(--bg3);border-radius:10px">`;
+  for(const pos of POSITIONS_9MAX){
+    const act=S.livePos===pos;
+    h+=`<button class="btn btn-xs ${act?'btn-green':'btn-slate'}" style="min-width:38px" onclick="S.livePos='${pos}';persist();renderTab('live')">${pos}</button>`;
+  }
+  h+=`</div>`;
 
   // ─── POSITION + FACING (compact) ───
   h+=`<div class="card-panel"><div class="section-title">Position</div><div class="pos-bar">`;
@@ -1194,9 +1153,66 @@ function renderLive(el){
   h+=`</div></div>`;
   h+=`</div>`;
 
+  // ─── CAMERA SCANNER (collapsible at bottom) ───
+  const camOpen = S.stream ? true : false;
+  const scanStatusColor = S.autoScan ? '#22c55e' : (S.stream ? '#3b82f6' : '#64748b');
+  const scanStatusText = S.autoScan ? 'Auto-scanning' : (S.stream ? 'Camera on' : 'Camera off');
+  h+=`<details id="cameraSection" ${camOpen?'open':''} style="margin-top:10px;background:var(--bg2);border:1px solid var(--bg3);border-radius:10px;overflow:hidden">
+    <summary style="padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text)">
+      <span style="width:8px;height:8px;border-radius:50%;background:${scanStatusColor};display:inline-block"></span>
+      Camera Scanner
+      <span style="font-size:10px;color:${scanStatusColor};font-weight:400;margin-left:auto">${scanStatusText} \u00B7 ${S.scanCount||0} scans</span>
+    </summary>
+    <div style="padding:0 10px 10px">
+      <div class="camera-wrap" id="cameraWrap" style="margin-bottom:8px">
+        <video id="video" autoplay playsinline muted style="min-height:160px;background:#000;border-radius:8px"></video>
+        <canvas id="canvas"></canvas>
+        <div class="cam-overlay">
+          <span id="ocrStatus" style="color:${S.autoScan?'#22c55e':'#64748b'}">${S.autoScan?'Auto-scanning...':'Camera ready'}</span>
+          <span id="scanCount">${S.scanCount||0} scans</span>
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin-bottom:8px">
+        <button class="btn btn-green btn-sm" style="flex:1" id="btnCamStart" onclick="startCamera()">Start Camera</button>
+        <button class="btn btn-amber btn-sm" style="flex:1" id="btnOcrSnap" onclick="ocrSnapshot()">Scan Now</button>
+        <button class="btn btn-red btn-sm" id="btnCamStop" onclick="stopCamera()">Stop</button>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg);border:1px solid var(--bg3);border-radius:8px;margin-bottom:8px;font-size:11px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;flex:1">
+          <input type="checkbox" id="autoScanToggle" ${S.autoScan?'checked':''} onchange="toggleAutoScan(this.checked)" style="accent-color:#22c55e;width:16px;height:16px">
+          <span style="color:${S.autoScan?'#22c55e':'#64748b'};font-weight:600">Auto-scan every</span>
+        </label>
+        <select onchange="S.autoScanInterval=+this.value" style="background:var(--bg);border:1px solid var(--bg3);color:var(--text);border-radius:6px;padding:3px 6px;font-size:11px">
+          <option value="3" ${S.autoScanInterval===3?'selected':''}>3s</option>
+          <option value="5" ${S.autoScanInterval===5?'selected':''}>5s</option>
+          <option value="10" ${S.autoScanInterval===10?'selected':''}>10s</option>
+        </select>
+      </div>
+
+      <div class="ocr-result" id="ocrResult" style="display:${S.lastOcrText?'block':'none'};white-space:pre-wrap;font-size:10px;max-height:100px;overflow-y:auto;margin-bottom:6px">${esc(S.lastOcrText||'')}</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px">
+        <div style="text-align:center">
+          <div style="font-size:8px;color:#64748b;margin-bottom:2px">Camera Capture</div>
+          <img id="ocrPreview" style="display:none;width:100%;border-radius:6px;border:1px solid var(--bg3)">
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:8px;color:#64748b;margin-bottom:2px">Processed (OCR input)</div>
+          <img id="ocrProcessed" style="display:none;width:100%;border-radius:6px;border:1px solid var(--bg3)">
+        </div>
+      </div>
+
+      <details><summary style="font-size:10px;color:#64748b;cursor:pointer;padding:4px">Debug Log</summary>
+        <pre id="ocrDebug" style="font-size:9px;color:#94a3b8;background:#0f172a;padding:8px;border-radius:6px;max-height:120px;overflow-y:auto;white-space:pre-wrap">${ocrDebugLog.join('\n')}</pre>
+      </details>
+    </div>
+  </details>`;
+
   el.innerHTML=h;
 
-  // Auto-start camera when entering Live tab
+  // Auto-start camera when entering Live tab (but keep section collapsed by default)
   if(!S.stream) startCamera();
 }
 
@@ -1738,7 +1754,7 @@ if('serviceWorker' in navigator){
   }).then(()=>{
     caches.keys().then(keys=>keys.forEach(k=>caches.delete(k)));
   });
-  navigator.serviceWorker.register('sw.js?v=3').then(reg=>{
+  navigator.serviceWorker.register('sw.js?v=4').then(reg=>{
     reg.addEventListener('updatefound',()=>{
       const nw=reg.installing;
       nw.addEventListener('statechange',()=>{if(nw.state==='activated') location.reload()});
