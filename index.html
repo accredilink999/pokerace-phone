@@ -1087,8 +1087,25 @@ function renderLive(el){
     </select>
   </div>`;
 
-  // OCR results
-  h+=`<div class="ocr-result" id="ocrResult" style="display:${S.lastOcrText?'block':'none'}">${S.lastOcrText||''}</div>`;
+  // OCR results + debug
+  h+=`<div class="ocr-result" id="ocrResult" style="display:${S.lastOcrText?'block':'none'};white-space:pre-wrap;font-size:10px;max-height:120px;overflow-y:auto">${esc(S.lastOcrText||'')}</div>`;
+
+  // Snapshot previews (what camera sees vs what OCR processes)
+  h+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px">
+    <div style="text-align:center">
+      <div style="font-size:8px;color:#64748b;margin-bottom:2px">Camera Capture</div>
+      <img id="ocrPreview" style="display:none;width:100%;border-radius:6px;border:1px solid var(--bg3)">
+    </div>
+    <div style="text-align:center">
+      <div style="font-size:8px;color:#64748b;margin-bottom:2px">Processed (OCR input)</div>
+      <img id="ocrProcessed" style="display:none;width:100%;border-radius:6px;border:1px solid var(--bg3)">
+    </div>
+  </div>`;
+
+  // Debug log
+  h+=`<details style="margin-bottom:10px"><summary style="font-size:10px;color:#64748b;cursor:pointer;padding:4px">OCR Debug Log</summary>
+    <pre id="ocrDebug" style="font-size:9px;color:#94a3b8;background:#0f172a;padding:8px;border-radius:6px;max-height:150px;overflow-y:auto;white-space:pre-wrap">${ocrDebugLog.join('\n')}</pre>
+  </details>`;
 
   // ─── DECISION DISPLAY ───
   if(decision){
@@ -1227,13 +1244,24 @@ let ocrWorker = null;
 let ocrLoading = false;
 let ocrReady = false;
 let ocrBusy = false;
+let ocrDebugLog = [];
+
+function ocrLog(msg){
+  const ts = new Date().toLocaleTimeString();
+  ocrDebugLog.push(ts+' '+msg);
+  if(ocrDebugLog.length>20) ocrDebugLog.shift();
+  const el = document.getElementById('ocrDebug');
+  if(el) el.textContent = ocrDebugLog.join('\n');
+  console.log('[OCR]', msg);
+}
 
 // Start loading Tesseract.js immediately
 (function preloadTesseract(){
   if(window.Tesseract) return;
   const script = document.createElement('script');
   script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
-  script.onload = () => console.log('Tesseract.js loaded');
+  script.onload = () => ocrLog('Tesseract.js script loaded OK');
+  script.onerror = () => ocrLog('FAILED to load Tesseract.js from CDN!');
   document.head.appendChild(script);
 })();
 
@@ -1242,33 +1270,46 @@ async function ensureOCR(){
   if(ocrLoading) return null;
   ocrLoading = true;
   updateOcrStatus('Loading OCR engine...');
+  ocrLog('Starting OCR engine init...');
 
   try{
-    // Wait for Tesseract to be available
     if(!window.Tesseract){
+      ocrLog('Waiting for Tesseract script...');
       await new Promise((resolve, reject) => {
         let tries = 0;
         const check = setInterval(() => {
           if(window.Tesseract){clearInterval(check);resolve()}
-          if(++tries > 100){clearInterval(check);reject(new Error('Tesseract failed to load'))}
+          if(++tries > 100){clearInterval(check);reject(new Error('Tesseract script never loaded after 20s'))}
         }, 200);
       });
     }
-
+    ocrLog('Tesseract available, creating worker...');
     updateOcrStatus('Downloading language data (~2MB)...');
+
     ocrWorker = await Tesseract.createWorker('eng', 1, {
       logger: m => {
         if(m.status === 'loading language traineddata'){
-          updateOcrStatus('Downloading OCR data: '+Math.round((m.progress||0)*100)+'%');
+          const pct = Math.round((m.progress||0)*100);
+          updateOcrStatus('Downloading OCR data: '+pct+'%');
+          if(pct%25===0) ocrLog('Lang data: '+pct+'%');
         }
       }
     });
+
+    // Set optimal parameters for screen text reading
+    await ocrWorker.setParameters({
+      tessedit_pageseg_mode: '6',    // Uniform block of text
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/:$.,♠♥♦♣ -',
+    });
+
     ocrReady = true;
     ocrLoading = false;
+    ocrLog('OCR engine READY');
     updateOcrStatus('OCR ready');
     return ocrWorker;
   }catch(e){
     ocrLoading = false;
+    ocrLog('OCR FAILED: '+e.message);
     updateOcrStatus('OCR failed: '+e.message);
     return null;
   }
@@ -1279,13 +1320,40 @@ function updateOcrStatus(text){
   if(el) el.textContent = text;
 }
 
+// Image preprocessing — convert to high-contrast grayscale for OCR
+function preprocessForOCR(canvas){
+  const ctx = canvas.getContext('2d');
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+
+  for(let i = 0; i < data.length; i += 4){
+    // Convert to grayscale
+    const gray = data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114;
+
+    // Increase contrast (stretch histogram)
+    let v = ((gray - 128) * 1.8) + 128;
+    v = Math.max(0, Math.min(255, v));
+
+    // Threshold to black/white for cleaner OCR
+    const bw = v > 140 ? 255 : 0;
+
+    data[i] = bw;
+    data[i+1] = bw;
+    data[i+2] = bw;
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
 async function startCamera(){
   try{
+    ocrLog('Requesting camera...');
     S.stream = await navigator.mediaDevices.getUserMedia({
       video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},audio:false
     });
     const vid = document.getElementById('video');
     if(vid) vid.srcObject = S.stream;
+    ocrLog('Camera started OK');
     updateOcrStatus('Camera active');
 
     // Start loading OCR in background
@@ -1294,6 +1362,7 @@ async function startCamera(){
     const btnStart = document.getElementById('btnCamStart');
     if(btnStart){btnStart.textContent='Camera On';btnStart.style.opacity='.5'}
   }catch(e){
+    ocrLog('Camera DENIED: '+e.message);
     updateOcrStatus('Camera denied');
     alert('Camera access denied. Make sure you allow camera permissions.\n\n'+e.message);
   }
@@ -1306,6 +1375,7 @@ function stopCamera(){
   }
   toggleAutoScan(false);
   updateOcrStatus('Camera stopped');
+  ocrLog('Camera stopped');
   const btnStart = document.getElementById('btnCamStart');
   if(btnStart){btnStart.textContent='Start Camera';btnStart.style.opacity='1'}
 }
@@ -1314,10 +1384,12 @@ function toggleAutoScan(on){
   S.autoScan = on;
   if(S.autoScanTimer){clearInterval(S.autoScanTimer);S.autoScanTimer=null}
   if(on && S.stream){
+    ocrLog('Auto-scan ON (every '+S.autoScanInterval+'s)');
     updateOcrStatus('Auto-scanning...');
-    ocrSnapshot(); // immediate first scan
+    ocrSnapshot();
     S.autoScanTimer = setInterval(()=>ocrSnapshot(), S.autoScanInterval*1000);
   }else{
+    if(!on) ocrLog('Auto-scan OFF');
     updateOcrStatus(S.stream?'Camera active':'Camera stopped');
   }
 }
@@ -1326,8 +1398,8 @@ async function ocrSnapshot(){
   const video = document.getElementById('video');
   const canvas = document.getElementById('canvas');
   if(!video||!canvas||!S.stream) return;
-  if(ocrBusy) return; // skip if still processing previous frame
-  if(video.videoWidth===0) return; // camera not ready yet
+  if(ocrBusy) return;
+  if(video.videoWidth===0){ocrLog('Video not ready (width=0)');return}
 
   ocrBusy = true;
   updateOcrStatus('Scanning...');
@@ -1337,33 +1409,60 @@ async function ocrSnapshot(){
   canvas.height = video.videoHeight;
   const ctx = canvas.getContext('2d');
   ctx.drawImage(video,0,0);
+  ocrLog('Frame captured: '+canvas.width+'x'+canvas.height);
+
+  // Show snapshot preview
+  const previewEl = document.getElementById('ocrPreview');
+  if(previewEl){
+    previewEl.src = canvas.toDataURL('image/jpeg', 0.5);
+    previewEl.style.display = 'block';
+  }
+
+  // Apply image preprocessing for better OCR
+  preprocessForOCR(canvas);
+
+  // Show processed preview
+  const processedEl = document.getElementById('ocrProcessed');
+  if(processedEl){
+    processedEl.src = canvas.toDataURL('image/jpeg', 0.5);
+    processedEl.style.display = 'block';
+  }
 
   try{
     const worker = await ensureOCR();
-    if(!worker){ocrBusy=false;return}
+    if(!worker){ocrLog('No OCR worker available');ocrBusy=false;return}
 
-    // Convert to image data for OCR
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    ocrLog('Running OCR...');
+    const dataUrl = canvas.toDataURL('image/png');
     const result = await worker.recognize(dataUrl);
     const text = result.data.text.trim();
+    const conf = Math.round(result.data.confidence);
 
     S.scanCount = (S.scanCount||0)+1;
     const countEl = document.getElementById('scanCount');
     if(countEl) countEl.textContent = S.scanCount+' scans';
 
+    ocrLog('Scan #'+S.scanCount+': '+text.length+' chars, '+conf+'% conf');
+    if(text.length<3) ocrLog('Raw text: "'+text+'"');
+    else ocrLog('Text: "'+text.substring(0,80)+(text.length>80?'...':'')+'"');
+
     if(text){
-      // Parse poker information from OCR text
       const parsed = parsePokerText(text);
-      S.lastOcrText = text + (parsed ? '\n'+parsed : '');
+      S.lastOcrText = 'Raw OCR ('+conf+'% conf):\n'+text+(parsed ? '\n\n'+parsed : '');
 
       const ocrEl = document.getElementById('ocrResult');
       if(ocrEl){ocrEl.style.display='block';ocrEl.textContent=S.lastOcrText}
 
-      updateOcrStatus(S.autoScan?'Auto-scanning...':'Scan complete');
+      updateOcrStatus(S.autoScan?'Auto-scanning...':'Scan done ('+conf+'%)');
     }else{
-      updateOcrStatus('No text found \u2014 move closer');
+      S.lastOcrText = 'No text detected';
+      const ocrEl = document.getElementById('ocrResult');
+      if(ocrEl){ocrEl.style.display='block';ocrEl.textContent='No text detected — try moving closer or adjusting angle'}
+      updateOcrStatus('No text — move closer');
+      ocrLog('No text detected at all');
     }
   }catch(e){
+    ocrLog('OCR ERROR: '+e.message);
     updateOcrStatus('Scan error: '+e.message);
     console.error('OCR error:', e);
   }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pokerace-v2';
+const CACHE_NAME = 'pokerace-v3';
 
 self.addEventListener('install', e => {
   self.skipWaiting();
