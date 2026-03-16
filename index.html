@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PokerAce">
+<link rel="manifest" href="manifest.json">
+<title>PokerAce</title>
+<style>
+/* ─── Reset & Base ─── */
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#334155;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+  --green:#22c55e;--red:#ef4444;--blue:#3b82f6;--amber:#eab308;
+  --purple:#a855f7;--cyan:#06b6d4;--pink:#ec4899;--orange:#f97316;
+  --safe-b:env(safe-area-inset-bottom, 0px);
+}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  background:var(--bg);color:var(--text);
+  display:flex;flex-direction:column;
+  -webkit-user-select:none;user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* ─── Header ─── */
+.header{
+  padding:10px 16px;background:var(--bg2);
+  border-bottom:1px solid var(--bg3);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;z-index:10;
+}
+.logo{font-size:17px;font-weight:900}
+.logo .g{color:var(--green)}.logo .a{color:var(--amber)}
+.logo .sub{font-size:11px;color:var(--text3);font-weight:400;margin-left:4px}
+.hdr-right{display:flex;align-items:center;gap:8px}
+.status{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text2)}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+
+/* ─── Main content ─── */
+#main{
+  flex:1;overflow-y:auto;overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  padding-bottom:8px;
+}
+.page{padding:12px;display:none}
+.page.active{display:block}
+
+/* ─── Bottom Nav ─── */
+.nav{
+  display:flex;background:var(--bg2);
+  border-top:1px solid var(--bg3);
+  flex-shrink:0;
+  padding-bottom:var(--safe-b);
+}
+.nav button{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  padding:8px 0 6px;border:none;background:none;
+  color:var(--text3);font-size:9px;font-weight:600;cursor:pointer;
+  transition:color .15s;gap:2px;
+}
+.nav button.active{color:var(--green)}
+.nav button .ico{font-size:18px;line-height:1}
+
+/* ─── Common UI ─── */
+.card-panel{
+  background:var(--bg2);border:1px solid var(--bg3);
+  border-radius:12px;padding:12px;margin-bottom:10px;
+}
+.section-title{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.btn{
+  padding:10px 16px;border:none;border-radius:10px;
+  font-size:13px;font-weight:700;cursor:pointer;
+  transition:all .15s;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn-green{background:#22c55e20;color:var(--green);border:1px solid #22c55e40}
+.btn-blue{background:#3b82f620;color:var(--blue);border:1px solid #3b82f640}
+.btn-red{background:#ef444420;color:var(--red);border:1px solid #ef444440}
+.btn-amber{background:#eab30820;color:var(--amber);border:1px solid #eab30840}
+.btn-slate{background:var(--bg);color:var(--text2);border:1px solid var(--bg3)}
+.btn-sm{padding:6px 12px;font-size:11px;border-radius:8px}
+.btn-xs{padding:4px 8px;font-size:10px;border-radius:6px}
+.btn:active{transform:scale(.96);opacity:.8}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap}
+.chip{
+  display:inline-flex;padding:4px 10px;border-radius:6px;
+  font-size:11px;font-weight:600;cursor:pointer;
+  transition:all .12s;border:1px solid transparent;
+}
+.chip.active{border-color:currentColor}
+.input{
+  width:100%;background:var(--bg);border:1px solid var(--bg3);
+  border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;
+  outline:none;
+}
+.input:focus{border-color:var(--green)}
+
+/* ─── Hand Matrix ─── */
+.matrix-wrap{touch-action:none}
+.matrix{
+  display:grid;grid-template-columns:repeat(13,1fr);
+  gap:1px;border-radius:8px;overflow:hidden;
+}
+.matrix .cell{
+  aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+  font-size:8px;font-weight:600;
+  cursor:pointer;transition:background .08s;
+  line-height:1;text-align:center;
+}
+@media(min-width:400px){.matrix .cell{font-size:9px}}
+.matrix .cell.pair{background:#1e293b}
+.matrix .cell.suited{background:#0f172a}
+.matrix .cell.offsuit{background:#0f172aCC}
+.matrix .cell.in-range{color:#fff}
+
+/* ─── Position Pills ─── */
+.pos-bar{display:flex;gap:4px;overflow-x:auto;padding:2px 0;flex-wrap:nowrap}
+.pos-pill{
+  padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;
+  white-space:nowrap;cursor:pointer;
+  background:var(--bg);color:var(--text3);border:1px solid transparent;
+  transition:all .12s;flex-shrink:0;
+}
+.pos-pill.active{background:#22c55e15;color:var(--green);border-color:#22c55e40}
+
+/* ─── Range Stats ─── */
+.range-stats{
+  display:flex;gap:12px;align-items:center;
+  font-size:12px;color:var(--text2);padding:6px 0;
+}
+.range-stats .big{font-size:20px;font-weight:800;color:var(--text)}
+
+/* ─── Push/Fold ─── */
+.pf-pos-grid{display:flex;flex-wrap:wrap;gap:6px}
+.pf-pos-btn{
+  display:flex;flex-direction:column;align-items:center;
+  padding:8px 10px;border-radius:10px;
+  background:var(--bg);min-width:48px;cursor:pointer;
+  border:1px solid transparent;transition:all .12s;
+}
+.pf-pos-btn.active{border-color:currentColor}
+.pf-pos-btn .pos-name{font-size:10px;font-weight:700}
+.pf-pos-btn .pos-pct{font-size:16px;font-weight:800;color:var(--text)}
+.mini-matrix{
+  display:grid;grid-template-columns:repeat(13,1fr);gap:0;
+  border-radius:6px;overflow:hidden;
+}
+.mini-matrix .mc{
+  aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+  font-size:5px;font-weight:600;color:var(--text3);
+}
+@media(min-width:400px){.mini-matrix .mc{font-size:6px}}
+
+/* ─── Tester ─── */
+.decision-big{
+  text-align:center;padding:16px;border-radius:14px;
+  border:2px solid var(--bg3);margin-bottom:10px;
+}
+.decision-big .action{font-size:36px;font-weight:900;text-transform:uppercase;letter-spacing:1px}
+.decision-big .conf{font-size:16px;font-weight:700;margin-top:4px}
+.decision-big .meta{font-size:11px;color:var(--text2);margin-top:6px}
+
+/* ─── Live Mode ─── */
+.live-decision{
+  text-align:center;padding:20px;border-radius:14px;
+  border:2px solid var(--bg3);min-height:120px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  margin-bottom:10px;
+}
+.live-decision .action{font-size:48px;font-weight:900;text-transform:uppercase;letter-spacing:2px}
+.live-decision .combo{
+  font-size:16px;font-weight:700;margin-top:8px;
+  padding:4px 14px;border-radius:8px;background:rgba(255,255,255,.1);
+}
+
+/* ─── Card Picker ─── */
+.card-grid{display:grid;grid-template-columns:repeat(13,1fr);gap:2px}
+.card-btn{
+  aspect-ratio:.7;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:800;border-radius:4px;cursor:pointer;
+  border:2px solid transparent;transition:all .1s;
+  flex-direction:column;line-height:1.1;
+}
+@media(min-width:400px){.card-btn{font-size:11px}}
+.card-btn.hearts,.card-btn.diamonds{color:#ef4444;background:#ef444412}
+.card-btn.clubs,.card-btn.spades{color:#e2e8f0;background:#1e293b}
+.card-btn.selected{border-color:#eab308;box-shadow:0 0 8px rgba(234,179,8,.5);transform:scale(1.08)}
+.card-btn.disabled{opacity:.2;pointer-events:none}
+.card-btn:active{transform:scale(.92)}
+
+/* ─── Selected Cards Display ─── */
+.hero-cards{display:flex;gap:8px;justify-content:center;margin-bottom:12px}
+.hero-card{
+  width:56px;height:80px;border-radius:8px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-size:20px;font-weight:900;line-height:1.1;
+  border:2px solid var(--bg3);cursor:pointer;
+}
+.hero-card.filled{border-color:#eab30880}
+.hero-card.hearts,.hero-card.diamonds{color:#ef4444;background:#ef444418}
+.hero-card.clubs,.hero-card.spades{color:#e2e8f0;background:#1e293b}
+.hero-card .suit-sym{font-size:16px}
+
+/* ─── Camera ─── */
+.camera-wrap{position:relative;border-radius:12px;overflow:hidden;background:#000;margin-bottom:10px}
+#video{width:100%;display:block;border-radius:12px}
+#canvas{display:none}
+.cam-overlay{
+  position:absolute;bottom:0;left:0;right:0;padding:8px 12px;
+  background:linear-gradient(transparent,rgba(0,0,0,.8));
+  display:flex;justify-content:space-between;font-size:10px;color:var(--text2);font-family:monospace;
+}
+.ocr-result{
+  font-family:monospace;font-size:11px;color:var(--cyan);
+  padding:6px 10px;background:#06b6d410;border:1px solid #06b6d430;
+  border-radius:8px;margin-bottom:6px;white-space:pre-wrap;word-break:break-all;
+  max-height:120px;overflow-y:auto;
+}
+
+/* ─── Settings ─── */
+.strat-list-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px;border-radius:8px;background:var(--bg);
+  margin-bottom:6px;cursor:pointer;
+}
+.strat-list-item.active{background:#22c55e10;border:1px solid #22c55e30}
+.strat-list-item .name{flex:1;font-size:13px;font-weight:600}
+.strat-list-item .info{font-size:10px;color:var(--text3)}
+.strat-list-item .del{color:var(--red);opacity:.5;font-size:11px;padding:4px 8px}
+
+/* ─── Modal ─── */
+.modal-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);
+  z-index:100;display:flex;align-items:center;justify-content:center;
+  padding:20px;
+}
+.modal{
+  background:var(--bg2);border:1px solid var(--bg3);border-radius:16px;
+  padding:20px;width:100%;max-width:400px;max-height:80vh;overflow-y:auto;
+}
+.modal h3{font-size:16px;margin-bottom:12px}
+
+/* ─── Mode Toggle ─── */
+.mode-toggle{
+  display:flex;background:var(--bg);border-radius:10px;
+  border:1px solid var(--bg3);overflow:hidden;margin-bottom:10px;
+}
+.mode-toggle button{
+  flex:1;padding:10px;border:none;background:none;
+  color:var(--text3);font-size:12px;font-weight:700;cursor:pointer;
+  transition:all .15s;
+}
+.mode-toggle button.active{background:var(--green);color:#000}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo"><span class="g">Poker</span><span class="a">Ace</span><span class="sub" id="hdrSub">Strategy</span></div>
+  <div class="hdr-right">
+    <div class="status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Phone Only</span>
+    </div>
+  </div>
+</div>
+
+<div id="main">
+  <div id="page-strategy" class="page active"></div>
+  <div id="page-pushfold" class="page"></div>
+  <div id="page-tester" class="page"></div>
+  <div id="page-live" class="page"></div>
+  <div id="page-settings" class="page"></div>
+</div>
+
+<nav class="nav">
+  <button class="active" data-tab="strategy" onclick="switchTab('strategy')">
+    <span class="ico">&#9638;</span>Ranges
+  </button>
+  <button data-tab="pushfold" onclick="switchTab('pushfold')">
+    <span class="ico">&#9679;</span>Push/Fold
+  </button>
+  <button data-tab="tester" onclick="switchTab('tester')">
+    <span class="ico">&#9881;</span>Tester
+  </button>
+  <button data-tab="live" onclick="switchTab('live')">
+    <span class="ico">&#9673;</span>Live
+  </button>
+  <button data-tab="settings" onclick="switchTab('settings')">
+    <span class="ico">&#9776;</span>Settings
+  </button>
+</nav>
+
+<script>
+// ═══════════════════════════════════════════════════
+// ENGINE — complete poker decision engine (no server)
+// ═══════════════════════════════════════════════════
+
+const RANKS = ['A','K','Q','J','T','9','8','7','6','5','4','3','2'];
+const SUITS = ['h','d','c','s'];
+const SUIT_SYMBOLS = {h:'\u2665',d:'\u2666',c:'\u2663',s:'\u2660'};
+const SUIT_NAMES = {h:'hearts',d:'diamonds',c:'clubs',s:'spades'};
+const POSITIONS_9MAX = ['UTG','UTG1','UTG2','LJ','HJ','CO','BTN','SB','BB'];
+const BB_RANGES = [3,4,5,6,7,8,9,10,12,15,20];
+
+const POS_COLORS = {
+  UTG:'#ef4444',UTG1:'#f97316',UTG2:'#eab308',LJ:'#84cc16',
+  HJ:'#22c55e',CO:'#14b8a6',BTN:'#3b82f6',SB:'#8b5cf6',BB:'#ec4899'
+};
+const ACTION_COLORS = {fold:'#6b7280',check:'#94a3b8',call:'#3b82f6',raise:'#22c55e',push:'#eab308'};
+const RANGE_COLORS = {
+  open_raise:'#22c55e',call:'#3b82f6','3bet':'#ef4444',
+  '4bet':'#a855f7','5bet_push':'#f97316',
+  vs_raise_call:'#06b6d4',vs_raise_3bet:'#ec4899',
+  vs_3bet_call:'#0ea5e9',vs_3bet_4bet:'#d946ef',
+  push:'#eab308',fold:'#6b7280'
+};
+const RANGE_ACTIONS = ['open_raise','call','3bet','4bet','push','vs_raise_call','vs_raise_3bet','vs_3bet_call','vs_3bet_4bet'];
+
+// ─── Hand Matrix ───
+function getCombo(r,c){
+  if(r===c) return RANKS[r]+RANKS[r];
+  if(r<c) return RANKS[r]+RANKS[c]+'s';
+  return RANKS[c]+RANKS[r]+'o';
+}
+function getComboCount(r,c){if(r===c) return 6;if(r<c) return 4;return 12}
+function getComboType(r,c){if(r===c) return 'pair';if(r<c) return 'suited';return 'offsuit'}
+function parseCombo(combo){
+  const r1=RANKS.indexOf(combo[0]),r2=RANKS.indexOf(combo[1]);
+  if(combo.length===2) return {row:r1,col:r1};
+  if(combo[2]==='s') return {row:Math.min(r1,r2),col:Math.max(r1,r2)};
+  return {row:Math.max(r1,r2),col:Math.min(r1,r2)};
+}
+
+const ALL_COMBOS = [];
+for(let r=0;r<13;r++) for(let c=0;c<13;c++) ALL_COMBOS.push(getCombo(r,c));
+
+function createEmptyRange(){const d={};ALL_COMBOS.forEach(c=>d[c]=0);return d}
+function countCombos(range){
+  let n=0;
+  for(let r=0;r<13;r++) for(let c=0;c<13;c++){
+    const f=range[getCombo(r,c)]||0;
+    if(f>0) n+=getComboCount(r,c)*f;
+  }
+  return Math.round(n);
+}
+function rangePercent(range){return Math.round(countCombos(range)/1326*1000)/10}
+
+// ─── Hand Tiers ───
+const PREMIUM=new Set(['AA','KK','QQ','JJ','AKs','AKo']);
+const STRONG=new Set(['TT','99','AQs','AQo','AJs','ATs','KQs']);
+const PLAYABLE=new Set(['88','77','66','AJo','ATo','A9s','A8s','A7s','A6s','A5s','A4s','A3s','A2s','KJs','KTs','KQo','QJs','QTs','JTs','T9s','98s','87s','76s']);
+function getHandTier(combo){
+  if(PREMIUM.has(combo)) return 'premium';
+  if(STRONG.has(combo)) return 'strong';
+  if(PLAYABLE.has(combo)) return 'playable';
+  const p=parseCombo(combo);
+  const t=getComboType(p.row,p.col);
+  if(t==='pair'&&p.row<=7) return 'marginal';
+  if(t==='suited'&&Math.abs(p.row-p.col)<=2&&p.row<=8) return 'marginal';
+  return 'trash';
+}
+const TIER_COLORS={premium:'#a855f7',strong:'#ef4444',playable:'#22c55e',marginal:'#eab308',trash:'#6b7280'};
+
+// ─── Default Ranges ───
+const UTG_OPEN=['AA','KK','QQ','JJ','TT','99','AKs','AQs','AJs','ATs','AKo','AQo','KQs'];
+const HJ_OPEN=[...UTG_OPEN,'88','77','A9s','A8s','AJo','ATo','KJs','KTs','KQo','QJs','QTs','JTs'];
+const CO_OPEN=[...HJ_OPEN,'66','55','A7s','A6s','A5s','A4s','A3s','A2s','A9o','K9s','KJo','Q9s','QJo','J9s','JTo','T9s','T8s','98s','87s','76s'];
+const BTN_OPEN=[...CO_OPEN,'44','33','22','A8o','A7o','A6o','A5o','A4o','K8s','K7s','K6s','KTo','Q8s','QTo','J8s','J9o','T7s','97s','86s','75s','65s','54s'];
+const SB_OPEN=[...CO_OPEN,'44','33','22','A8o','A7o','A6o','A5o','K8s','K7s','KTo','Q8s','QTo','J8s','T7s','97s','86s','75s','65s'];
+const DEFAULT_RANGES={
+  UTG:new Set(UTG_OPEN),UTG1:new Set(UTG_OPEN),
+  UTG2:new Set([...UTG_OPEN,'88','A9s','KJs']),
+  LJ:new Set(HJ_OPEN),HJ:new Set(HJ_OPEN),
+  CO:new Set(CO_OPEN),BTN:new Set(BTN_OPEN),SB:new Set(SB_OPEN),BB:new Set([])
+};
+
+// ─── Push/Fold Tables ───
+const HAND_RANKINGS=['AA','KK','QQ','AKs','JJ','AKo','AQs','TT','AQo','AJs','99','ATs','AJo','KQs','88','ATo','KJs','A9s','KQo','KTs','77','A8s','A9o','KJo','QJs','A7s','KTo','A5s','A6s','QTs','66','A8o','K9s','A4s','QJo','A3s','A7o','JTs','A2s','K8s','QTo','K9o','55','A5o','A6o','Q9s','A4o','K7s','JTo','J9s','K8o','A3o','Q8s','K6s','44','A2o','T9s','K5s','Q9o','K7o','J8s','K4s','Q7s','T8s','K3s','Q6s','K6o','33','J9o','K2s','Q5s','J7s','T9o','K5o','Q8o','98s','T7s','Q4s','K4o','J8o','22','Q3s','J6s','T8o','97s','Q2s','Q7o','K3o','J5s','87s','T6s','K2o','J4s','96s','Q6o','98o','J7o','T7o','J3s','86s','Q5o','76s','T5s','J2s','97o','95s','Q4o','T4s','J6o','85s','65s','Q3o','87o','T3s','75s','J5o','96o','T6o','Q2o','54s','T2s','86o','84s','J4o','94s','76o','64s','93s','J3o','74s','95o','53s','T5o','85o','92s','65o','J2o','83s','43s','T4o','73s','63s','82s','75o','54o','42s','T3o','52s','84o','94o','64o','32s','74o','T2o','93o','53o','92o','43o','83o','73o','63o','42o','82o','52o','32o'];
+
+const PUSH_PCT={
+  3:{UTG:48,UTG1:52,UTG2:55,LJ:60,HJ:65,CO:75,BTN:100,SB:100},
+  4:{UTG:35,UTG1:38,UTG2:42,LJ:48,HJ:55,CO:65,BTN:85,SB:100},
+  5:{UTG:28,UTG1:30,UTG2:34,LJ:38,HJ:44,CO:55,BTN:72,SB:85},
+  6:{UTG:22,UTG1:25,UTG2:28,LJ:32,HJ:38,CO:46,BTN:62,SB:75},
+  7:{UTG:18,UTG1:20,UTG2:23,LJ:26,HJ:32,CO:40,BTN:55,SB:68},
+  8:{UTG:15,UTG1:17,UTG2:19,LJ:22,HJ:27,CO:35,BTN:48,SB:60},
+  9:{UTG:13,UTG1:15,UTG2:17,LJ:19,HJ:23,CO:30,BTN:42,SB:52},
+  10:{UTG:11,UTG1:13,UTG2:15,LJ:17,HJ:20,CO:26,BTN:38,SB:46},
+  12:{UTG:9,UTG1:10,UTG2:12,LJ:14,HJ:17,CO:22,BTN:32,SB:38},
+  15:{UTG:7,UTG1:8,UTG2:9,LJ:11,HJ:13,CO:17,BTN:25,SB:30},
+  20:{UTG:5,UTG1:6,UTG2:7,LJ:8,HJ:10,CO:13,BTN:18,SB:22}
+};
+const CALL_PCT={
+  3:{UTG1:20,UTG2:22,LJ:25,HJ:28,CO:32,BTN:38,SB:42,BB:55},
+  4:{UTG1:16,UTG2:18,LJ:20,HJ:23,CO:27,BTN:32,SB:36,BB:45},
+  5:{UTG1:13,UTG2:15,LJ:17,HJ:19,CO:22,BTN:27,SB:30,BB:38},
+  6:{UTG1:11,UTG2:12,LJ:14,HJ:16,CO:18,BTN:22,SB:25,BB:32},
+  7:{UTG1:9,UTG2:10,LJ:12,HJ:14,CO:16,BTN:19,SB:22,BB:28},
+  8:{UTG1:8,UTG2:9,LJ:10,HJ:12,CO:14,BTN:16,SB:19,BB:24},
+  9:{UTG1:7,UTG2:8,LJ:9,HJ:10,CO:12,BTN:14,SB:17,BB:21},
+  10:{UTG1:6,UTG2:7,LJ:8,HJ:9,CO:10,BTN:12,SB:15,BB:18},
+  12:{UTG1:5,UTG2:6,LJ:7,HJ:8,CO:9,BTN:10,SB:12,BB:15},
+  15:{UTG1:4,UTG2:5,LJ:5,HJ:6,CO:7,BTN:8,SB:10,BB:12},
+  20:{UTG1:3,UTG2:3,LJ:4,HJ:5,CO:5,BTN:6,SB:7,BB:9}
+};
+
+function nearestBB(x){
+  let best=BB_RANGES[0],bd=Math.abs(x-best);
+  for(const b of BB_RANGES){const d=Math.abs(x-b);if(d<bd){best=b;bd=d}}
+  return best;
+}
+function comboCountForHand(combo){if(combo.length===2) return 6;return combo[2]==='s'?4:12}
+function getRangeFromPct(pct){
+  if(pct<=0) return [];
+  if(pct>=100) return [...HAND_RANKINGS];
+  const target=Math.round(pct/100*1326);
+  let total=0;const result=[];
+  for(const c of HAND_RANKINGS){
+    const n=comboCountForHand(c);
+    if(total+n<=target){result.push(c);total+=n}else break;
+  }
+  return result;
+}
+function getPushRange(bb,pos){return getRangeFromPct((PUSH_PCT[bb]||{})[pos]||0)}
+function getCallRange(bb,pos){return getRangeFromPct((CALL_PCT[bb]||{})[pos]||0)}
+function getPushPct(bb,pos){return (PUSH_PCT[bb]||{})[pos]||0}
+function getCallPct(bb,pos){return (CALL_PCT[bb]||{})[pos]||0}
+
+// ─── Phase Detection ───
+function detectPhase(bb,players,phases){
+  if(phases&&phases.length>0){
+    for(const p of phases){
+      const minOk=p.minBB==null||bb>=p.minBB;
+      const maxOk=p.maxBB==null||bb<=p.maxBB;
+      if(minOk&&maxOk) return p.phaseName;
+    }
+  }
+  if(bb>=60) return 'early';
+  if(bb>=40) return 'early_mid';
+  if(bb>=25) return 'mid';
+  if(bb>=15) return 'money_bubble';
+  if(bb>=10) return 'late';
+  if(bb>=8) return 'final_table_bubble';
+  return 'final_table';
+}
+function isPushFoldZone(bb){return bb<=15}
+
+// ─── Decision Engine ───
+const PROFILES=[
+  {label:'None',type:'unknown',adj:{openAdjust:1,bluffAdjust:1,callAdjust:1,foldTo3betAdjust:1}},
+  {label:'Fish',type:'fish',adj:{openAdjust:1.2,bluffAdjust:.7,callAdjust:1.3,foldTo3betAdjust:.6}},
+  {label:'Nit',type:'nit',adj:{openAdjust:.7,bluffAdjust:.5,callAdjust:.7,foldTo3betAdjust:1.5}},
+  {label:'TAG',type:'tag',adj:{openAdjust:.9,bluffAdjust:1,callAdjust:.9,foldTo3betAdjust:1.1}},
+  {label:'LAG',type:'lag',adj:{openAdjust:1.3,bluffAdjust:1.3,callAdjust:1.1,foldTo3betAdjust:.8}},
+  {label:'Maniac',type:'maniac',adj:{openAdjust:1.5,bluffAdjust:1.5,callAdjust:1.4,foldTo3betAdjust:.5}},
+];
+
+function getDecision(input){
+  const {heroCombo,heroPosition,heroBBCount,facingAction='unopened',
+    villainProfile,phases,allRanges,isOnBubble}=input;
+  const reasoning=[],adjustments=[],alternatives=[];
+  const phase=detectPhase(heroBBCount,undefined,phases);
+  reasoning.push('Phase: '+phase+' ('+heroBBCount+' BB)');
+
+  if(isPushFoldZone(heroBBCount)){
+    reasoning.push('Short stack \u2014 push/fold mode');
+    return pushFoldDecision(input,phase,reasoning,adjustments);
+  }
+
+  const rangeResult=lookupRange(phase,heroPosition,facingAction,allRanges);
+  if(!rangeResult){
+    reasoning.push('No strategy range \u2014 using hand tier');
+    return defaultDecision(heroCombo,heroPosition,heroBBCount,facingAction,phase,reasoning);
+  }
+
+  const {rangeData,action:rangeAction}=rangeResult;
+  let freq=rangeData[heroCombo]||0;
+  reasoning.push('Strategy: '+rangeAction+' from '+heroPosition);
+
+  if(villainProfile&&villainProfile.type!=='unknown'){
+    const adj=villainProfile.adjustments;
+    const mult=rangeAction==='open_raise'||rangeAction==='push'?adj.openAdjust:adj.callAdjust;
+    const newFreq=Math.max(0,Math.min(1,freq*mult));
+    if(newFreq!==freq) adjustments.push('Adjusted for '+villainProfile.name);
+    freq=newFreq;
+  }
+  if(isOnBubble){freq*=.85;adjustments.push('ICM bubble: -15%')}
+
+  const inRange=freq>0;
+  const tier=getHandTier(heroCombo);
+  let action;
+  if(!inRange) action='fold';
+  else if(rangeAction==='open_raise'||rangeAction==='3bet'||rangeAction==='4bet'||rangeAction==='vs_raise_3bet'||rangeAction==='vs_3bet_4bet') action='raise';
+  else if(rangeAction==='push'||rangeAction==='5bet_push') action='push';
+  else action='call';
+
+  const tierBonus={premium:.35,strong:.25,playable:.15,marginal:.05,trash:-.1};
+  let conf=.5+(tierBonus[tier]||0)+freq*.15;
+  conf=Math.max(.1,Math.min(1,conf));
+
+  if(action!=='fold'&&freq<.5) alternatives.push({action:'fold',reasoning:'Marginal \u2014 fold is close'});
+  if(action==='fold'&&tier!=='trash') alternatives.push({action:facingAction==='unopened'?'raise':'call',reasoning:tier+' hand \u2014 exploit weak opponents'});
+
+  return {action,confidence:Math.round(conf*100)/100,reasoning,alternatives,
+    inRange,rangeFrequency:freq,phaseUsed:phase,positionUsed:heroPosition,adjustmentsApplied:adjustments};
+}
+
+function pushFoldDecision(input,phase,reasoning,adjustments){
+  const {heroCombo,heroPosition,heroBBCount,facingAction,villainProfile,isOnBubble}=input;
+  const bb=nearestBB(heroBBCount);
+  const tier=getHandTier(heroCombo);
+
+  if(facingAction==='shove'){
+    const callCombos=new Set(getCallRange(bb,heroPosition));
+    const inCall=callCombos.has(heroCombo);
+    let pct=getCallPct(bb,heroPosition);
+    if(villainProfile&&villainProfile.type!=='unknown'){pct*=villainProfile.adjustments.callAdjust;adjustments.push('Call adjusted for '+villainProfile.name)}
+    if(isOnBubble){pct*=.85;adjustments.push('ICM: tighter calling')}
+    reasoning.push('Call range at '+bb+' BB from '+heroPosition+': '+pct.toFixed(1)+'%');
+    const conf=inCall?.7+(tier==='premium'?.25:tier==='strong'?.15:0):.6;
+    return {action:inCall?'call':'fold',confidence:Math.min(1,conf),reasoning,alternatives:[],
+      inRange:inCall,rangeFrequency:inCall?1:0,phaseUsed:phase,positionUsed:heroPosition,adjustmentsApplied:adjustments};
+  }
+
+  const pushCombos=new Set(getPushRange(bb,heroPosition));
+  const inPush=pushCombos.has(heroCombo);
+  let pct=getPushPct(bb,heroPosition);
+  if(villainProfile&&villainProfile.type!=='unknown'){pct*=villainProfile.adjustments.openAdjust;adjustments.push('Push adjusted for '+villainProfile.name)}
+  if(isOnBubble){pct*=.8;adjustments.push('ICM: tighter shoving')}
+  reasoning.push('Push range at '+bb+' BB from '+heroPosition+': '+pct.toFixed(1)+'%');
+  const conf=inPush?.75+(tier==='premium'?.2:0):.65;
+  return {action:inPush?'push':'fold',confidence:Math.min(1,conf),reasoning,alternatives:[],
+    inRange:inPush,rangeFrequency:inPush?1:0,phaseUsed:phase,positionUsed:heroPosition,adjustmentsApplied:adjustments};
+}
+
+function lookupRange(phase,position,facingAction,allRanges){
+  if(!allRanges) return null;
+  const actionMap={unopened:'open_raise',raise:'vs_raise_call','3bet':'vs_3bet_call',shove:'call'};
+  const ra=actionMap[facingAction]||'open_raise';
+  const keys=[phase+':'+position+':'+ra,'default:'+position+':'+ra,phase+':'+position+':open_raise','default:'+position+':open_raise'];
+  for(const k of keys){if(allRanges[k]) return {rangeData:allRanges[k],action:ra}}
+  return null;
+}
+
+function defaultDecision(combo,position,bb,facingAction,phase,reasoning){
+  const tier=getHandTier(combo);
+  const shouldPlay=tier==='premium'||tier==='strong'||(tier==='playable'&&['CO','BTN','SB'].includes(position));
+  const action=!shouldPlay?'fold':facingAction==='unopened'?'raise':'call';
+  reasoning.push('Hand tier: '+tier+' -> '+action);
+  return {action,confidence:tier==='premium'?.95:tier==='strong'?.8:.55,reasoning,alternatives:[],
+    inRange:shouldPlay,rangeFrequency:shouldPlay?1:0,phaseUsed:phase,positionUsed:position,
+    adjustmentsApplied:['No strategy \u2014 default tiers']};
+}
+
+// Convert two cards to combo string
+function cardsToCombo(card1, card2){
+  if(!card1||!card2) return null;
+  const r1=card1.rank, r2=card2.rank;
+  const s1=card1.suit, s2=card2.suit;
+  const i1=RANKS.indexOf(r1), i2=RANKS.indexOf(r2);
+  if(r1===r2) return r1+r2; // pair
+  const high=i1<i2?r1:r2, low=i1<i2?r2:r1;
+  const suited=s1===s2;
+  return high+low+(suited?'s':'o');
+}
+
+
+// ═══════════════════════════════════════════════════
+// STATE MANAGEMENT + LOCALSTORAGE
+// ═══════════════════════════════════════════════════
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+const S={
+  activePhase:'default',activePosition:'BTN',activeAction:'open_raise',
+  rangeData:createEmptyRange(),allRanges:{},phases:[],
+  currentStrategyId:null,currentStrategyName:'Untitled Strategy',isDirty:false,
+  strategies:[],
+  isSelecting:false,selectionMode:'add',
+  pfBB:10,pfMode:'push',pfPosition:'BTN',
+  tCombo:'AKs',tPos:'BTN',tBB:20,tFacing:'unopened',tVillainPos:'CO',tProfile:0,tBubble:false,
+  // Live mode state
+  liveCard1:null, liveCard2:null, // {rank:'A',suit:'h'}
+  livePos:'BTN', liveBB:20, liveFacing:'unopened',
+  liveMode:'input', // 'input' or 'camera'
+  stream:null,capturing:false,
+};
+
+function rangeKey(phase,pos,action){return phase+':'+pos+':'+action}
+function buildDefaultAllRanges(phase){
+  phase=phase||'default';
+  const all={};
+  for(const pos of POSITIONS_9MAX){
+    const defs=DEFAULT_RANGES[pos];
+    const range=createEmptyRange();
+    if(defs) for(const c of defs) range[c]=1;
+    all[rangeKey(phase,pos,'open_raise')]=range;
+  }
+  return all;
+}
+function saveCurrent(){
+  const key=rangeKey(S.activePhase,S.activePosition,S.activeAction);
+  S.allRanges[key]={...S.rangeData};
+}
+function loadRangeForContext(){
+  const key=rangeKey(S.activePhase,S.activePosition,S.activeAction);
+  S.rangeData=S.allRanges[key]?{...S.allRanges[key]}:createEmptyRange();
+}
+
+S.allRanges=buildDefaultAllRanges();
+loadRangeForContext();
+
+function persist(){
+  const data={
+    strategies:S.strategies,currentStrategyId:S.currentStrategyId,
+    currentStrategyName:S.currentStrategyName,phases:S.phases,
+    allRanges:S.allRanges,rangeData:S.rangeData,
+    activePhase:S.activePhase,activePosition:S.activePosition,activeAction:S.activeAction,
+    livePos:S.livePos,liveBB:S.liveBB,liveFacing:S.liveFacing,
+  };
+  try{localStorage.setItem('pokerace_phone',JSON.stringify(data))}catch(e){}
+}
+
+function restore(){
+  try{
+    const raw=localStorage.getItem('pokerace_phone');
+    if(!raw) return;
+    const d=JSON.parse(raw);
+    if(d.strategies) S.strategies=d.strategies;
+    if(d.currentStrategyId) S.currentStrategyId=d.currentStrategyId;
+    if(d.currentStrategyName) S.currentStrategyName=d.currentStrategyName;
+    if(d.phases) S.phases=d.phases;
+    if(d.allRanges) S.allRanges=d.allRanges;
+    if(d.rangeData) S.rangeData=d.rangeData;
+    if(d.activePhase) S.activePhase=d.activePhase;
+    if(d.activePosition) S.activePosition=d.activePosition;
+    if(d.activeAction) S.activeAction=d.activeAction;
+    if(d.livePos) S.livePos=d.livePos;
+    if(d.liveBB) S.liveBB=d.liveBB;
+    if(d.liveFacing) S.liveFacing=d.liveFacing;
+  }catch(e){}
+}
+
+function saveStrategy(){
+  saveCurrent();
+  const ranges=Object.entries(S.allRanges).filter(([,rd])=>countCombos(rd)>0).map(([k,rd])=>{
+    const p=k.split(':');
+    return {name:k,phase:p[0],position:p[1],action:p.slice(2).join(':'),
+      rangeData:rd,comboCount:countCombos(rd),rangePercent:rangePercent(rd)};
+  });
+  const now=new Date().toISOString();
+  if(S.currentStrategyId){
+    const idx=S.strategies.findIndex(s=>s.id===S.currentStrategyId);
+    if(idx>=0) S.strategies[idx]={...S.strategies[idx],name:S.currentStrategyName,phases:S.phases,ranges,updatedAt:now};
+  }else{
+    const id='s_'+Date.now();
+    S.strategies.push({id,name:S.currentStrategyName,phases:[...S.phases],ranges,createdAt:now,updatedAt:now});
+    S.currentStrategyId=id;
+  }
+  S.isDirty=false;persist();
+}
+
+function loadStrategy(id){
+  const strat=S.strategies.find(s=>s.id===id);
+  if(!strat) return;
+  S.currentStrategyId=strat.id;S.currentStrategyName=strat.name;
+  S.phases=strat.phases?[...strat.phases]:[];
+  S.allRanges={};
+  for(const r of strat.ranges){
+    S.allRanges[rangeKey(r.phase||'default',r.position,r.action)]=r.rangeData;
+  }
+  S.activePhase=S.phases.length>0?S.phases[0].phaseName:'default';
+  S.activePosition='BTN';S.activeAction='open_raise';
+  loadRangeForContext();S.isDirty=false;persist();
+}
+
+function deleteStrategy(id){
+  S.strategies=S.strategies.filter(s=>s.id!==id);
+  if(S.currentStrategyId===id) newStrategy();
+  persist();
+}
+
+function newStrategy(){
+  S.currentStrategyId=null;S.currentStrategyName='Untitled Strategy';
+  S.phases=[];S.allRanges=buildDefaultAllRanges();
+  S.activePhase='default';S.activePosition='BTN';S.activeAction='open_raise';
+  loadRangeForContext();S.isDirty=false;
+}
+
+function exportStrategyJSON(){
+  saveCurrent();
+  return JSON.stringify({
+    name:S.currentStrategyName,phases:S.phases,ranges:S.allRanges,
+    exportedAt:new Date().toISOString()
+  },null,2);
+}
+
+function importStrategyJSON(json){
+  try{
+    const d=JSON.parse(json);
+    if(d.ranges){
+      S.currentStrategyId=null;
+      S.currentStrategyName=d.name||'Imported Strategy';
+      S.phases=d.phases||[];
+      S.allRanges=d.ranges;
+      S.activePhase=S.phases.length>0?S.phases[0].phaseName:'default';
+      S.activePosition='BTN';S.activeAction='open_raise';
+      loadRangeForContext();S.isDirty=true;
+      return true;
+    }
+  }catch(e){alert('Invalid JSON: '+e.message)}
+  return false;
+}
+
+
+// ═══════════════════════════════════════════════════
+// TAB NAVIGATION
+// ═══════════════════════════════════════════════════
+
+let currentTab='strategy';
+
+function switchTab(tab){
+  if(currentTab===tab) return;
+  if(currentTab==='strategy') saveCurrent();
+  if(currentTab==='live'&&S.liveMode==='camera') stopCamera();
+  currentTab=tab;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+tab).classList.add('active');
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+  const labels={strategy:'Ranges',pushfold:'Push/Fold',tester:'Tester',live:'Live',settings:'Settings'};
+  document.getElementById('hdrSub').textContent=labels[tab]||'';
+  renderTab(tab);
+  document.getElementById('main').scrollTop=0;
+}
+
+function renderTab(tab){
+  const el=document.getElementById('page-'+tab);
+  switch(tab){
+    case 'strategy':renderStrategy(el);break;
+    case 'pushfold':renderPushFold(el);break;
+    case 'tester':renderTester(el);break;
+    case 'live':renderLive(el);break;
+    case 'settings':renderSettings(el);break;
+  }
+}
+
+
+// ═══════════════════════════════════════════════════
+// STRATEGY BUILDER PAGE
+// ═══════════════════════════════════════════════════
+
+function renderStrategy(el){
+  const cc=countCombos(S.rangeData);
+  const pct=rangePercent(S.rangeData);
+  const actionColor=RANGE_COLORS[S.activeAction]||'#22c55e';
+  let h='';
+
+  h+=`<div class="card-panel" style="display:flex;align-items:center;gap:8px">
+    <input class="input" style="flex:1;font-weight:700" value="${esc(S.currentStrategyName)}" id="stratName"
+      onchange="S.currentStrategyName=this.value;S.isDirty=true">
+    ${S.isDirty?'<span style="color:#eab308;font-size:10px;font-weight:700">Unsaved</span>':''}
+    <button class="btn btn-green btn-sm" onclick="saveStrategy();renderTab('strategy')">Save</button>
+  </div>`;
+
+  h+=`<div class="card-panel"><div class="section-title">Phase</div><div class="pos-bar">
+    <div class="pos-pill ${S.activePhase==='default'?'active':''}" onclick="setPhase('default')">Default</div>`;
+  for(const p of S.phases) h+=`<div class="pos-pill ${S.activePhase===p.phaseName?'active':''}" onclick="setPhase('${esc(p.phaseName)}')">${esc(p.phaseName)}</div>`;
+  h+=`</div></div>`;
+
+  h+=`<div class="card-panel"><div class="section-title">Position</div><div class="pos-bar">`;
+  for(const pos of POSITIONS_9MAX){
+    const act=S.activePosition===pos;
+    h+=`<div class="pos-pill ${act?'active':''}" style="${act?'color:'+POS_COLORS[pos]+';border-color:'+POS_COLORS[pos]+'60;background:'+POS_COLORS[pos]+'15':''}" onclick="setPosition('${pos}')">${pos}</div>`;
+  }
+  h+=`</div></div>`;
+
+  h+=`<div class="card-panel"><div class="section-title">Action</div><div class="pos-bar">`;
+  for(const a of RANGE_ACTIONS){
+    const label=a.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+    const act=S.activeAction===a;
+    h+=`<div class="pos-pill ${act?'active':''}" style="${act?'color:'+RANGE_COLORS[a]+';border-color:'+RANGE_COLORS[a]+'60;background:'+RANGE_COLORS[a]+'15':''}" onclick="setAction('${a}')">${label}</div>`;
+  }
+  h+=`</div></div>`;
+
+  h+=`<div class="range-stats"><span class="big">${cc}</span> combos <span style="margin-left:auto"><span class="big">${pct}%</span> of hands</span></div>`;
+  h+=`<div class="btn-row" style="margin-bottom:8px">
+    <button class="btn btn-green btn-xs" onclick="selectAll()">All</button>
+    <button class="btn btn-slate btn-xs" onclick="clearAll()">Clear</button>
+    <button class="btn btn-blue btn-xs" onclick="loadDefaults()">Defaults</button>
+  </div>`;
+
+  h+=`<div class="card-panel matrix-wrap" id="matrixWrap"><div class="matrix" id="matrixGrid">`;
+  for(let r=0;r<13;r++){
+    for(let c=0;c<13;c++){
+      const combo=getCombo(r,c);const freq=S.rangeData[combo]||0;
+      const type=getComboType(r,c);const inRange=freq>0;
+      let bg;
+      if(inRange) bg=actionColor+(freq<1?'99':'cc');
+      else if(type==='pair') bg='#1e293b';
+      else if(type==='suited') bg='#0f172a';
+      else bg='#0f172aCC';
+      h+=`<div class="cell ${type}${inRange?' in-range':''}" data-r="${r}" data-c="${c}" data-combo="${combo}"
+        style="background:${bg};color:${inRange?'#fff':'#475569'}">${combo}</div>`;
+    }
+  }
+  h+=`</div></div>`;
+
+  el.innerHTML=h;
+  attachMatrixEvents();
+}
+
+function attachMatrixEvents(){
+  const grid=document.getElementById('matrixGrid');
+  if(!grid) return;
+  function getCellFromPoint(x,y){
+    const el=document.elementFromPoint(x,y);
+    return el&&el.dataset&&el.dataset.combo?el:null;
+  }
+  function updateCellVisual(cell){
+    const combo=cell.dataset.combo;const freq=S.rangeData[combo]||0;
+    const inRange=freq>0;const r=+cell.dataset.r,c=+cell.dataset.c;
+    const type=getComboType(r,c);
+    const actionColor=RANGE_COLORS[S.activeAction]||'#22c55e';
+    let bg;
+    if(inRange) bg=actionColor+(freq<1?'99':'cc');
+    else if(type==='pair') bg='#1e293b';
+    else if(type==='suited') bg='#0f172a';
+    else bg='#0f172aCC';
+    cell.style.background=bg;cell.style.color=inRange?'#fff':'#475569';
+    cell.classList.toggle('in-range',inRange);
+  }
+  function toggleCell(cell){
+    const combo=cell.dataset.combo;
+    S.rangeData[combo]=(S.rangeData[combo]||0)>0?0:1;
+    S.isDirty=true;updateCellVisual(cell);
+  }
+  function paintCell(cell){
+    const combo=cell.dataset.combo;
+    const newVal=S.selectionMode==='add'?1:0;
+    if(S.rangeData[combo]!==newVal){S.rangeData[combo]=newVal;S.isDirty=true;updateCellVisual(cell)}
+  }
+  grid.addEventListener('mousedown',e=>{
+    const cell=e.target.closest('.cell');if(!cell) return;
+    e.preventDefault();S.isSelecting=true;
+    S.selectionMode=(S.rangeData[cell.dataset.combo]||0)>0?'remove':'add';
+    toggleCell(cell);
+  });
+  grid.addEventListener('mousemove',e=>{if(!S.isSelecting) return;const cell=e.target.closest('.cell');if(cell) paintCell(cell)});
+  document.addEventListener('mouseup',()=>{if(S.isSelecting){S.isSelecting=false;updateStats()}});
+  grid.addEventListener('touchstart',e=>{
+    const t=e.touches[0];const cell=getCellFromPoint(t.clientX,t.clientY);
+    if(!cell) return;e.preventDefault();S.isSelecting=true;
+    S.selectionMode=(S.rangeData[cell.dataset.combo]||0)>0?'remove':'add';
+    toggleCell(cell);
+  },{passive:false});
+  grid.addEventListener('touchmove',e=>{
+    if(!S.isSelecting) return;e.preventDefault();
+    const t=e.touches[0];const cell=getCellFromPoint(t.clientX,t.clientY);
+    if(cell) paintCell(cell);
+  },{passive:false});
+  grid.addEventListener('touchend',()=>{if(S.isSelecting){S.isSelecting=false;updateStats()}});
+}
+
+function updateStats(){
+  const el=document.querySelector('.range-stats');
+  if(el){
+    const cc=countCombos(S.rangeData);const pct=rangePercent(S.rangeData);
+    el.innerHTML=`<span class="big">${cc}</span> combos <span style="margin-left:auto"><span class="big">${pct}%</span> of hands</span>`;
+  }
+  persist();
+}
+
+function setPhase(phase){saveCurrent();S.activePhase=phase;loadRangeForContext();renderTab('strategy')}
+function setPosition(pos){saveCurrent();S.activePosition=pos;loadRangeForContext();renderTab('strategy')}
+function setAction(action){saveCurrent();S.activeAction=action;loadRangeForContext();renderTab('strategy')}
+function selectAll(){ALL_COMBOS.forEach(c=>S.rangeData[c]=1);S.isDirty=true;renderTab('strategy')}
+function clearAll(){ALL_COMBOS.forEach(c=>S.rangeData[c]=0);S.isDirty=true;renderTab('strategy')}
+function loadDefaults(){
+  const defs=DEFAULT_RANGES[S.activePosition];
+  ALL_COMBOS.forEach(c=>S.rangeData[c]=0);
+  if(defs) for(const c of defs) S.rangeData[c]=1;
+  S.isDirty=true;renderTab('strategy');
+}
+
+
+// ═══════════════════════════════════════════════════
+// PUSH/FOLD PAGE
+// ═══════════════════════════════════════════════════
+
+function renderPushFold(el){
+  const bb=S.pfBB,mode=S.pfMode,pos=S.pfPosition;
+  const basePct=mode==='push'?getPushPct(bb,pos):getCallPct(bb,pos);
+  const combos=new Set(mode==='push'?getPushRange(bb,pos):getCallRange(bb,pos));
+  const color=mode==='push'?'#eab308':'#3b82f6';
+  const positions=mode==='push'?POSITIONS_9MAX.filter(p=>p!=='BB'):POSITIONS_9MAX.filter(p=>p!=='UTG');
+  let h='';
+
+  h+=`<div class="card-panel" style="display:flex;gap:4px">
+    <button class="btn ${mode==='push'?'btn-amber':'btn-slate'}" style="flex:1" onclick="S.pfMode='push';renderTab('pushfold')">Push</button>
+    <button class="btn ${mode==='call'?'btn-blue':'btn-slate'}" style="flex:1" onclick="S.pfMode='call';renderTab('pushfold')">Call</button>
+  </div>`;
+
+  h+=`<div class="card-panel"><div class="section-title">Stack: <span style="color:#fff;font-size:18px;font-weight:800">${bb} BB</span></div><div class="btn-row">`;
+  for(const b of BB_RANGES) h+=`<button class="btn btn-xs ${bb===b?'btn-blue':'btn-slate'}" onclick="S.pfBB=${b};renderTab('pushfold')">${b}</button>`;
+  h+=`</div></div>`;
+
+  h+=`<div class="card-panel"><div class="section-title">${mode==='push'?'Push':'Call'} % by Position</div><div class="pf-pos-grid">`;
+  for(const p of positions){
+    const pct=mode==='push'?getPushPct(bb,p):getCallPct(bb,p);
+    const isActive=pos===p;const c=POS_COLORS[p]||'#94a3b8';
+    h+=`<div class="pf-pos-btn${isActive?' active':''}" style="${isActive?'background:'+c+'15;border-color:'+c+'60':''}" onclick="S.pfPosition='${p}';renderTab('pushfold')">
+      <span class="pos-name" style="color:${isActive?c:'#94a3b8'}">${p}</span><span class="pos-pct">${pct}%</span></div>`;
+  }
+  h+=`</div></div>`;
+
+  h+=`<div class="card-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="section-title" style="margin:0">${pos} \u2014 ${mode==='push'?'Push':'Call'} Range</div>
+      <div><span style="font-size:18px;font-weight:800;color:${color}">${basePct}%</span> <span style="font-size:10px;color:#64748b">(${combos.size} hands)</span></div>
+    </div><div class="mini-matrix">`;
+  for(let r=0;r<13;r++) for(let c=0;c<13;c++){
+    const combo=getCombo(r,c);const inR=combos.has(combo);
+    h+=`<div class="mc" style="background:${inR?color+'cc':r===c?'#1e293b':'#0f172a'};color:${inR?'#fff':'#475569'}" title="${combo}">${combo}</div>`;
+  }
+  h+=`</div></div>`;
+
+  h+=`<div class="card-panel"><div class="section-title">All Positions at ${bb} BB</div>
+    <div style="overflow-x:auto"><table style="width:100%;font-size:11px;border-collapse:collapse">
+    <tr style="border-bottom:1px solid #334155"><th style="text-align:left;padding:4px;color:#64748b">Pos</th>
+    <th style="text-align:center;padding:4px;color:#eab308">Push%</th>
+    <th style="text-align:center;padding:4px;color:#3b82f6">Call%</th></tr>`;
+  for(const p of POSITIONS_9MAX){
+    const pp=getPushPct(bb,p),cp=getCallPct(bb,p);
+    h+=`<tr style="border-bottom:1px solid #1e293b;cursor:pointer" onclick="S.pfPosition='${p}';S.pfMode='${pp>0?'push':'call'}';renderTab('pushfold')">
+      <td style="padding:4px;font-weight:700;color:${POS_COLORS[p]}">${p}</td>
+      <td style="text-align:center;padding:4px;color:#eab308;font-family:monospace">${pp>0?pp+'%':'\u2014'}</td>
+      <td style="text-align:center;padding:4px;color:#3b82f6;font-family:monospace">${cp>0?cp+'%':'\u2014'}</td></tr>`;
+  }
+  h+=`</table></div></div>`;
+
+  el.innerHTML=h;
+}
+
+
+// ═══════════════════════════════════════════════════
+// STRATEGY TESTER PAGE
+// ═══════════════════════════════════════════════════
+
+function renderTester(el){
+  const profile=PROFILES[S.tProfile];
+  const decision=getDecision({
+    heroCombo:S.tCombo,heroPosition:S.tPos,heroBBCount:S.tBB,facingAction:S.tFacing,
+    villainPosition:S.tFacing!=='unopened'?S.tVillainPos:undefined,
+    villainProfile:S.tProfile>0?{name:profile.label,type:profile.type,adjustments:profile.adj}:undefined,
+    phases:S.phases.map(p=>({phaseName:p.phaseName,minBB:p.minBB,maxBB:p.maxBB})),
+    allRanges:S.allRanges,isOnBubble:S.tBubble,
+  });
+  const ac=ACTION_COLORS[decision.action]||'#94a3b8';
+  const facingLabels={unopened:'Unopened',raise:'Facing Raise',shove:'Facing Shove','3bet':'Facing 3-Bet'};
+  let h='';
+
+  h+=`<div class="decision-big" style="background:${ac}08;border-color:${ac}30">
+    <div class="action" style="color:${ac}">${decision.action}</div>
+    <div class="conf" style="color:${ac}">${Math.round(decision.confidence*100)}% confidence</div>
+    <div class="meta">
+      <span style="background:#1e293b;padding:2px 8px;border-radius:4px;margin:0 2px">${S.tCombo}</span>
+      <span style="background:#1e293b;padding:2px 8px;border-radius:4px;margin:0 2px">${S.tPos}</span>
+      <span style="background:#1e293b;padding:2px 8px;border-radius:4px;margin:0 2px">${S.tBB} BB</span>
+    </div>
+    <div style="margin-top:8px;font-size:12px">
+      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${decision.inRange?'#22c55e':'#ef4444'};margin-right:4px"></span>
+      ${S.tCombo} is <span style="color:${decision.inRange?'#22c55e':'#ef4444'};font-weight:700">${decision.inRange?'IN':'OUT OF'}</span> range
+    </div>
+  </div>`;
+
+  h+=`<div class="card-panel"><div class="section-title">Your Hand</div>
+    <div style="display:flex;flex-wrap:wrap;gap:3px;max-height:140px;overflow-y:auto">`;
+  for(const c of HAND_RANKINGS.slice(0,60)){
+    const t=getHandTier(c);const sel=c===S.tCombo;
+    h+=`<button class="chip" style="background:${TIER_COLORS[t]}${sel?'40':'12'};color:${TIER_COLORS[t]};font-size:10px;font-family:monospace;${sel?'border-color:'+TIER_COLORS[t]+';box-shadow:0 0 8px '+TIER_COLORS[t]+'30':''}" onclick="S.tCombo='${c}';renderTab('tester')">${c}</button>`;
+  }
+  h+=`<button class="chip" style="background:#1e293b;color:#64748b;font-size:9px" onclick="showAllHands()">+${HAND_RANKINGS.length-60} more</button>`;
+  h+=`</div></div>`;
+
+  h+=`<div class="card-panel"><div class="section-title">Position</div><div class="pos-bar">`;
+  for(const pos of POSITIONS_9MAX) h+=`<div class="pos-pill ${S.tPos===pos?'active':''}" onclick="S.tPos='${pos}';renderTab('tester')">${pos}</div>`;
+  h+=`</div></div>`;
+
+  h+=`<div class="card-panel">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div class="section-title" style="margin:0">Stack</div><span style="font-size:18px;font-weight:800">${S.tBB} BB</span>
+    </div>
+    <input type="range" min="1" max="100" value="${S.tBB}" oninput="S.tBB=+this.value;renderTab('tester')" style="width:100%;accent-color:#22c55e">
+    <div class="btn-row" style="margin-top:4px">`;
+  for(const bb of [5,10,15,20,30,50,75]) h+=`<button class="btn btn-xs ${S.tBB===bb?'btn-green':'btn-slate'}" onclick="S.tBB=${bb};renderTab('tester')">${bb}</button>`;
+  h+=`</div></div>`;
+
+  h+=`<div class="card-panel"><div class="section-title">Facing</div><div class="btn-row">`;
+  for(const fa of ['unopened','raise','shove','3bet']) h+=`<button class="btn btn-xs ${S.tFacing===fa?'btn-blue':'btn-slate'}" onclick="S.tFacing='${fa}';renderTab('tester')">${facingLabels[fa]}</button>`;
+  h+=`</div></div>`;
+
+  h+=`<div class="card-panel"><div class="section-title">Villain Profile</div><div class="btn-row">`;
+  for(let i=0;i<PROFILES.length;i++) h+=`<button class="btn btn-xs ${S.tProfile===i?'btn-amber':'btn-slate'}" onclick="S.tProfile=${i};renderTab('tester')">${PROFILES[i].label}</button>`;
+  h+=`</div></div>`;
+
+  h+=`<label class="card-panel" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+    <input type="checkbox" ${S.tBubble?'checked':''} onchange="S.tBubble=this.checked;renderTab('tester')" style="accent-color:#eab308;width:18px;height:18px">
+    <div><div style="font-size:13px;font-weight:600">Money Bubble</div><div style="font-size:10px;color:#64748b">ICM adjustments (tighter ranges)</div></div>
+  </label>`;
+
+  if(decision.reasoning.length>0){
+    h+=`<div class="card-panel"><div class="section-title">Reasoning</div>`;
+    for(const r of decision.reasoning) h+=`<div style="font-size:11px;color:#94a3b8;margin-bottom:2px">\u2022 ${esc(r)}</div>`;
+    h+=`</div>`;
+  }
+
+  el.innerHTML=h;
+}
+
+function showAllHands(){
+  const bg=document.createElement('div');bg.className='modal-bg';
+  bg.onclick=e=>{if(e.target===bg)bg.remove()};
+  let h=`<div class="modal"><h3>All Hands</h3><div style="display:flex;flex-wrap:wrap;gap:3px;max-height:60vh;overflow-y:auto">`;
+  for(const c of HAND_RANKINGS){
+    const t=getHandTier(c);
+    h+=`<button class="chip" style="background:${TIER_COLORS[t]}15;color:${TIER_COLORS[t]};font-size:10px;font-family:monospace"
+      onclick="S.tCombo='${c}';this.closest('.modal-bg').remove();renderTab('tester')">${c}</button>`;
+  }
+  h+=`</div><button class="btn btn-slate" style="width:100%;margin-top:12px" onclick="this.closest('.modal-bg').remove()">Close</button></div>`;
+  bg.innerHTML=h;document.body.appendChild(bg);
+}
+
+
+// ═══════════════════════════════════════════════════
+// LIVE MODE — QUICK INPUT + OPTIONAL CAMERA OCR
+// ═══════════════════════════════════════════════════
+
+function renderLive(el){
+  const combo = cardsToCombo(S.liveCard1, S.liveCard2);
+  let decision = null;
+  if(combo){
+    decision = getDecision({
+      heroCombo:combo, heroPosition:S.livePos, heroBBCount:S.liveBB,
+      facingAction:S.liveFacing,
+      phases:S.phases.map(p=>({phaseName:p.phaseName,minBB:p.minBB,maxBB:p.maxBB})),
+      allRanges:S.allRanges,
+    });
+  }
+
+  let h='';
+
+  // Decision display
+  if(decision){
+    const ac=ACTION_COLORS[decision.action]||'#94a3b8';
+    h+=`<div class="live-decision" style="background:${ac}10;border-color:${ac}40">
+      <div class="action" style="color:${ac}">${decision.action}</div>
+      <div class="combo">${combo} from ${S.livePos}</div>
+      <div style="font-size:14px;font-weight:700;margin-top:8px;color:${ac}">${Math.round(decision.confidence*100)}% confidence</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:4px">${S.liveBB} BB \u00B7 ${decision.phaseUsed}${decision.inRange?' \u00B7 IN RANGE':' \u00B7 OUT OF RANGE'}</div>
+    </div>`;
+  }else{
+    h+=`<div class="live-decision">
+      <div style="font-size:28px;margin-bottom:6px">\u2660\u2665</div>
+      <div style="font-size:14px;color:#64748b">Select your two cards below</div>
+    </div>`;
+  }
+
+  // Selected hero cards display
+  h+=`<div class="hero-cards">`;
+  if(S.liveCard1){
+    const sn=SUIT_NAMES[S.liveCard1.suit];
+    h+=`<div class="hero-card filled ${sn}" onclick="S.liveCard1=null;renderTab('live')">
+      <span>${S.liveCard1.rank}</span><span class="suit-sym">${SUIT_SYMBOLS[S.liveCard1.suit]}</span></div>`;
+  }else{
+    h+=`<div class="hero-card" style="background:var(--bg);color:var(--text3)"><span style="font-size:14px">Card 1</span></div>`;
+  }
+  if(S.liveCard2){
+    const sn=SUIT_NAMES[S.liveCard2.suit];
+    h+=`<div class="hero-card filled ${sn}" onclick="S.liveCard2=null;renderTab('live')">
+      <span>${S.liveCard2.rank}</span><span class="suit-sym">${SUIT_SYMBOLS[S.liveCard2.suit]}</span></div>`;
+  }else{
+    h+=`<div class="hero-card" style="background:var(--bg);color:var(--text3)"><span style="font-size:14px">Card 2</span></div>`;
+  }
+  h+=`</div>`;
+
+  // Quick clear
+  if(S.liveCard1||S.liveCard2){
+    h+=`<div style="text-align:center;margin-bottom:10px">
+      <button class="btn btn-red btn-sm" onclick="S.liveCard1=null;S.liveCard2=null;renderTab('live')">Clear Cards</button>
+      <button class="btn btn-slate btn-sm" onclick="nextHand()">Next Hand</button>
+    </div>`;
+  }
+
+  // Card picker — 4 rows (one per suit)
+  h+=`<div class="card-panel"><div class="section-title">Pick Your Cards</div>`;
+  const usedCards = [];
+  if(S.liveCard1) usedCards.push(S.liveCard1.rank+S.liveCard1.suit);
+  if(S.liveCard2) usedCards.push(S.liveCard2.rank+S.liveCard2.suit);
+  const hasBoth = S.liveCard1 && S.liveCard2;
+
+  for(const suit of SUITS){
+    h+=`<div class="card-grid" style="margin-bottom:3px">`;
+    for(const rank of RANKS){
+      const key=rank+suit;
+      const used=usedCards.includes(key);
+      const disabled=hasBoth&&!used;
+      const selected=used;
+      const sn=SUIT_NAMES[suit];
+      h+=`<div class="card-btn ${sn}${selected?' selected':''}${disabled?' disabled':''}" onclick="pickCard('${rank}','${suit}')">
+        <span>${rank}</span><span style="font-size:8px">${SUIT_SYMBOLS[suit]}</span></div>`;
+    }
+    h+=`</div>`;
+  }
+  h+=`</div>`;
+
+  // Position
+  h+=`<div class="card-panel"><div class="section-title">Position</div><div class="pos-bar">`;
+  for(const pos of POSITIONS_9MAX){
+    const act=S.livePos===pos;
+    h+=`<div class="pos-pill ${act?'active':''}" style="${act?'color:'+POS_COLORS[pos]+';border-color:'+POS_COLORS[pos]+'60;background:'+POS_COLORS[pos]+'15':''}" onclick="S.livePos='${pos}';renderTab('live')">${pos}</div>`;
+  }
+  h+=`</div></div>`;
+
+  // Stack + Facing
+  h+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">`;
+  h+=`<div class="card-panel">
+    <div class="section-title">Stack</div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <input type="number" class="input" value="${S.liveBB}" style="width:60px;text-align:center;font-weight:800;font-size:16px"
+        onchange="S.liveBB=Math.max(1,+this.value);persist();renderTab('live')">
+      <span style="font-size:12px;color:#64748b">BB</span>
+    </div>
+    <div class="btn-row" style="margin-top:6px">`;
+  for(const bb of [5,10,15,20,30]) h+=`<button class="btn btn-xs ${S.liveBB===bb?'btn-green':'btn-slate'}" onclick="S.liveBB=${bb};persist();renderTab('live')">${bb}</button>`;
+  h+=`</div></div>`;
+
+  const facingLabels={unopened:'Open',raise:'Raise',shove:'Shove','3bet':'3-Bet'};
+  h+=`<div class="card-panel">
+    <div class="section-title">Facing</div>
+    <div class="btn-row" style="flex-direction:column">`;
+  for(const fa of ['unopened','raise','shove','3bet']){
+    h+=`<button class="btn btn-xs ${S.liveFacing===fa?'btn-blue':'btn-slate'}" style="width:100%" onclick="S.liveFacing='${fa}';renderTab('live')">${facingLabels[fa]}</button>`;
+  }
+  h+=`</div></div>`;
+  h+=`</div>`;
+
+  // Strategy info
+  h+=`<div class="card-panel" style="font-size:12px;display:flex;justify-content:space-between">
+    <span>Strategy: <span style="color:#22c55e;font-weight:600">${esc(S.currentStrategyName)}</span></span>
+    <span style="color:#64748b">${S.phases.length} phases</span></div>`;
+
+  // Camera OCR section
+  h+=`<div class="card-panel">
+    <div class="section-title">Camera OCR (Experimental)</div>
+    <p style="font-size:11px;color:#64748b;margin-bottom:8px">Point camera at poker table to read text. Reads blinds, stacks, pot values.</p>
+    <div class="btn-row">
+      <button class="btn btn-blue btn-sm" id="btnCamStart" onclick="startCamera()">Open Camera</button>
+      <button class="btn btn-red btn-sm" id="btnCamStop" onclick="stopCamera()" style="opacity:.4;pointer-events:none">Close</button>
+      <button class="btn btn-amber btn-sm" id="btnOcrSnap" onclick="ocrSnapshot()" style="opacity:.4;pointer-events:none">Read Text</button>
+    </div>
+    <div class="camera-wrap" id="cameraWrap" style="display:none;margin-top:8px">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="canvas"></canvas>
+    </div>
+    <div class="ocr-result" id="ocrResult" style="display:none;margin-top:8px"></div>
+  </div>`;
+
+  el.innerHTML=h;
+}
+
+function pickCard(rank, suit){
+  const card = {rank, suit};
+  const key = rank+suit;
+
+  // If this card is already selected, deselect it
+  if(S.liveCard1 && S.liveCard1.rank===rank && S.liveCard1.suit===suit){
+    S.liveCard1=null; renderTab('live'); return;
+  }
+  if(S.liveCard2 && S.liveCard2.rank===rank && S.liveCard2.suit===suit){
+    S.liveCard2=null; renderTab('live'); return;
+  }
+
+  // Fill first empty slot
+  if(!S.liveCard1){
+    S.liveCard1=card;
+  }else if(!S.liveCard2){
+    S.liveCard2=card;
+  }else{
+    // Both full — replace first
+    S.liveCard1=S.liveCard2;
+    S.liveCard2=card;
+  }
+  renderTab('live');
+}
+
+function nextHand(){
+  S.liveCard1=null;S.liveCard2=null;
+  // Advance position
+  const idx=POSITIONS_9MAX.indexOf(S.livePos);
+  const next=(idx+1)%POSITIONS_9MAX.length;
+  S.livePos=POSITIONS_9MAX[next];
+  S.liveFacing='unopened';
+  persist();renderTab('live');
+}
+
+
+// ═══════════════════════════════════════════════════
+// CAMERA + OCR (Optional — Tesseract.js from CDN)
+// ═══════════════════════════════════════════════════
+
+let ocrWorker = null;
+let ocrLoading = false;
+
+async function startCamera(){
+  try{
+    S.stream = await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},audio:false
+    });
+    const wrap = document.getElementById('cameraWrap');
+    const vid = document.getElementById('video');
+    if(wrap) wrap.style.display='block';
+    if(vid) vid.srcObject = S.stream;
+    const btnStart = document.getElementById('btnCamStart');
+    const btnStop = document.getElementById('btnCamStop');
+    const btnSnap = document.getElementById('btnOcrSnap');
+    if(btnStart){btnStart.style.opacity='.4';btnStart.style.pointerEvents='none'}
+    if(btnStop){btnStop.style.opacity='1';btnStop.style.pointerEvents='auto'}
+    if(btnSnap){btnSnap.style.opacity='1';btnSnap.style.pointerEvents='auto'}
+  }catch(e){
+    alert('Camera access denied: '+e.message);
+  }
+}
+
+function stopCamera(){
+  if(S.stream){
+    S.stream.getTracks().forEach(t=>t.stop());
+    S.stream=null;
+  }
+  const wrap = document.getElementById('cameraWrap');
+  if(wrap) wrap.style.display='none';
+  const btnStart = document.getElementById('btnCamStart');
+  const btnStop = document.getElementById('btnCamStop');
+  const btnSnap = document.getElementById('btnOcrSnap');
+  if(btnStart){btnStart.style.opacity='1';btnStart.style.pointerEvents='auto'}
+  if(btnStop){btnStop.style.opacity='.4';btnStop.style.pointerEvents='none'}
+  if(btnSnap){btnSnap.style.opacity='.4';btnSnap.style.pointerEvents='none'}
+}
+
+async function loadTesseract(){
+  if(ocrWorker) return ocrWorker;
+  if(ocrLoading) return null;
+  ocrLoading = true;
+
+  const ocrEl = document.getElementById('ocrResult');
+  if(ocrEl){ocrEl.style.display='block';ocrEl.textContent='Loading OCR engine (first time ~2MB)...'}
+
+  // Load Tesseract.js from CDN
+  if(!window.Tesseract){
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  ocrWorker = await Tesseract.createWorker('eng', 1, {
+    logger: m => {
+      if(m.status==='recognizing text'){
+        const pct = Math.round((m.progress||0)*100);
+        if(ocrEl) ocrEl.textContent = 'Reading... '+pct+'%';
+      }
+    }
+  });
+
+  ocrLoading = false;
+  if(ocrEl) ocrEl.textContent = 'OCR ready. Tap "Read Text" to scan.';
+  return ocrWorker;
+}
+
+async function ocrSnapshot(){
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const ocrEl = document.getElementById('ocrResult');
+  if(!video||!canvas||!S.stream) return;
+
+  // Capture frame
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video,0,0);
+
+  if(ocrEl){ocrEl.style.display='block';ocrEl.textContent='Loading OCR...'}
+
+  try{
+    const worker = await loadTesseract();
+    if(!worker){if(ocrEl) ocrEl.textContent='OCR failed to load';return}
+
+    const dataUrl = canvas.toDataURL('image/png');
+    const result = await worker.recognize(dataUrl);
+    const text = result.data.text.trim();
+
+    if(ocrEl){
+      if(text){
+        ocrEl.textContent = 'OCR Result:\n' + text;
+        // Try to parse useful poker info
+        const parsed = parsePokerText(text);
+        if(parsed) ocrEl.textContent += '\n\n' + parsed;
+      }else{
+        ocrEl.textContent = 'No text detected. Try moving closer or improving lighting.';
+      }
+    }
+  }catch(e){
+    if(ocrEl) ocrEl.textContent = 'OCR error: '+e.message;
+  }
+}
+
+function parsePokerText(text){
+  const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  const info = [];
+
+  // Try to find blind levels (e.g. "100/200", "Blinds: 50/100")
+  const blindMatch = text.match(/(\d[\d,.]*)\s*[\/\\]\s*(\d[\d,.]*)/);
+  if(blindMatch){
+    const sb = parseFloat(blindMatch[1].replace(/,/g,''));
+    const bb = parseFloat(blindMatch[2].replace(/,/g,''));
+    info.push('Blinds: '+sb+'/'+bb);
+    // Auto-fill BB if reasonable
+    if(bb>0 && bb<100000) S.liveBB = Math.round(S.liveBB); // keep current
+  }
+
+  // Try to find pot (e.g. "Pot: 1,500")
+  const potMatch = text.match(/pot[:\s]*\$?([\d,]+)/i);
+  if(potMatch) info.push('Pot: '+potMatch[1]);
+
+  // Try to find stack sizes
+  const stackMatch = text.match(/(\d[\d,.]*)\s*(chips?|stack)/i);
+  if(stackMatch) info.push('Stack: '+stackMatch[1]);
+
+  // Try to detect actions
+  const actionWords = ['FOLD','CHECK','CALL','RAISE','ALL.IN','BET'];
+  for(const aw of actionWords){
+    if(text.toUpperCase().includes(aw)) info.push('Action detected: '+aw);
+  }
+
+  return info.length>0 ? '\nParsed:\n'+info.join('\n') : '';
+}
+
+
+// ═══════════════════════════════════════════════════
+// SETTINGS PAGE
+// ═══════════════════════════════════════════════════
+
+function renderSettings(el){
+  let h='';
+
+  h+=`<div class="card-panel"><div class="section-title">Current Strategy</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <input class="input" style="flex:1;font-weight:600" value="${esc(S.currentStrategyName)}" onchange="S.currentStrategyName=this.value;S.isDirty=true;persist()">
+      <button class="btn btn-green btn-sm" onclick="saveStrategy();renderTab('settings')">Save</button>
+      <button class="btn btn-slate btn-sm" onclick="newStrategy();renderTab('settings')">New</button>
+    </div></div>`;
+
+  h+=`<div class="card-panel"><div class="section-title">Saved Strategies (${S.strategies.length})</div>`;
+  if(S.strategies.length===0) h+=`<div style="color:#475569;font-size:12px;padding:12px;text-align:center">No saved strategies yet</div>`;
+  for(const s of S.strategies){
+    const isActive=s.id===S.currentStrategyId;
+    h+=`<div class="strat-list-item${isActive?' active':''}" onclick="loadStrategy('${s.id}');renderTab('settings')">
+      <div class="name" style="${isActive?'color:#22c55e':''}">${esc(s.name)}</div>
+      <div class="info">${s.ranges?s.ranges.length:0} ranges</div>
+      <button class="del" onclick="event.stopPropagation();if(confirm('Delete?')){deleteStrategy('${s.id}');renderTab('settings')}">Delete</button>
+    </div>`;
+  }
+  h+=`</div>`;
+
+  h+=`<div class="card-panel"><div class="section-title">Phases (${S.phases.length})</div>`;
+  for(const p of S.phases){
+    h+=`<div style="display:flex;align-items:center;gap:6px;padding:6px;background:#0f172a;border-radius:6px;margin-bottom:4px">
+      <span style="flex:1;font-size:12px;font-weight:600">${esc(p.phaseName)}</span>
+      <span style="font-size:10px;color:#64748b">${p.minBB!=null?p.minBB:'*'} - ${p.maxBB!=null?p.maxBB:'*'} BB</span>
+      <button class="btn btn-red btn-xs" onclick="removePhase('${esc(p.phaseName)}')">x</button></div>`;
+  }
+  h+=`<div style="display:flex;gap:6px;margin-top:8px">
+    <input class="input" placeholder="Phase name" id="newPhaseName" style="flex:1">
+    <input class="input" placeholder="Min" id="newPhaseMin" style="width:50px" type="number">
+    <input class="input" placeholder="Max" id="newPhaseMax" style="width:50px" type="number">
+    <button class="btn btn-green btn-sm" onclick="addPhase()">Add</button>
+  </div></div>`;
+
+  h+=`<div class="card-panel"><div class="section-title">Import / Export</div><div class="btn-row">
+    <button class="btn btn-blue" style="flex:1" onclick="doExport()">Export JSON</button>
+    <label class="btn btn-green" style="flex:1;cursor:pointer">Import JSON<input type="file" accept=".json" onchange="doImport(this)" style="display:none"></label>
+  </div></div>`;
+
+  h+=`<div class="card-panel" style="text-align:center">
+    <div class="logo" style="font-size:20px;margin-bottom:4px"><span class="g">Poker</span><span class="a">Ace</span></div>
+    <div style="font-size:11px;color:#64748b">v1.0.0 \u2014 Phone Only Edition</div>
+    <div style="font-size:10px;color:#475569;margin-top:4px">No server needed \u2022 100% on-device</div>
+    <div style="font-size:10px;color:#475569;margin-top:2px">Strategy \u2022 Push/Fold \u2022 Tester \u2022 Live Advisor</div>
+    <div style="font-size:9px;color:#334155;margin-top:8px">Camera OCR powered by Tesseract.js (optional)</div></div>`;
+
+  el.innerHTML=h;
+}
+
+function addPhase(){
+  const name=document.getElementById('newPhaseName').value.trim();
+  if(!name) return;
+  if(S.phases.some(p=>p.phaseName===name)){alert('Phase exists');return}
+  const min=document.getElementById('newPhaseMin').value;
+  const max=document.getElementById('newPhaseMax').value;
+  S.phases.push({phaseName:name,minBB:min?+min:undefined,maxBB:max?+max:undefined});
+  S.isDirty=true;persist();renderTab('settings');
+}
+
+function removePhase(name){
+  S.phases=S.phases.filter(p=>p.phaseName!==name);
+  for(const key of Object.keys(S.allRanges)){if(key.startsWith(name+':')) delete S.allRanges[key]}
+  if(S.activePhase===name){S.activePhase='default';loadRangeForContext()}
+  S.isDirty=true;persist();renderTab('settings');
+}
+
+function doExport(){
+  const json=exportStrategyJSON();
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;
+  a.download=S.currentStrategyName.replace(/\s+/g,'_')+'_phone.json';
+  a.click();URL.revokeObjectURL(url);
+}
+
+function doImport(input){
+  const file=input.files[0];if(!file) return;
+  file.text().then(text=>{if(importStrategyJSON(text)) renderTab('settings')});
+  input.value='';
+}
+
+
+// ═══════════════════════════════════════════════════
+// STATUS + INIT
+// ═══════════════════════════════════════════════════
+
+function setStatus(ok, text){
+  const dot=document.getElementById('statusDot');
+  const txt=document.getElementById('statusText');
+  if(dot) dot.style.background=ok?'#22c55e':'#ef4444';
+  if(txt) txt.textContent=text;
+}
+
+// Initialize
+restore();
+renderTab('strategy');
+
+// Register service worker for PWA
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
